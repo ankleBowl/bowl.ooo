@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+
+<head>
+    <title>Example 1</title>
+    <style>
+        body {
+            position: relative;
+            margin: 0;
+            width: 100vw;
+            height: 100vh;
+
+            /* background-color: gray; */
+
+            font-family: 'SF Pro Display', serif;
+        }
+
+        #glcanvas {
+            width: 100%;
+            height: 100%;
+
+            filter: blur(50px) contrast(110%) saturate(2) brightness(65%)
+        }
+
+        /* preblur image while respeting contrast tso that i can use a lesser blur here */
+
+        #canvasContainer {
+            position: fixed;
+            left: -15%;
+            top: -15%;
+            right: -15%;
+            bottom: -15%;
+    
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 50px;
+
+
+
+        }
+
+        #main-container {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+
+            display: flex;
+            box-sizing: border-box;
+            align-items: center;
+            justify-content: center;
+            padding: 6vw;
+
+            transition: gap 0.25s ease-out;
+        }
+
+        #main-container > div {
+            height: 100%;
+        }
+
+        #now-playing-view {
+            flex: 0.75;
+            
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+
+            max-width: calc(485px + 6.5vw);
+
+            text-align: center;
+
+            transition: max-width 0.25s ease-out;
+        }
+
+        #album-art {
+            width: 100%;
+            aspect-ratio: 1;
+            background-color: purple;
+            border-radius: 10px;
+
+            box-shadow: 0 0 40px 0px rgba(0, 0, 0, 0.15);
+        }
+
+        #now-playing-info {
+            position:relative;
+
+            width: 96%;
+            height: 0;
+        }   
+
+        #now-playing-info > div {
+            margin-top: 3vw;
+        }
+
+        #progress-bar-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+        }
+
+        #progress-times {
+            display: flex;
+            width: 98%;
+            justify-content: space-between;
+            font-size: 0.7em;
+            font-weight: bold;
+        }
+
+        #progress-bar {
+            width: 98%;
+            height: 3.5px;
+            border-radius: 3px;
+            overflow: hidden;
+            background-color: rgba(255, 255, 255, 0.5);
+        }
+
+        #progress-bar > div {
+            width: 50%;
+            height: 100%;
+            background-color: white;
+            border-radius: 3px;
+        }
+        
+        #song-info {
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        p {
+            color: rgba(255, 255, 255, 0.5);
+            margin: 0;
+
+            font-size: 1.2em;
+
+        }
+
+        #title {
+            color: white;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        #metadata {
+            /* white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 50%; */
+        }
+
+
+
+        /* FOR WHEN LYRICS ARE VISIBLE */
+        .lyrics-visible #now-playing-view {
+            max-width: calc(465px + 6.5vw);
+        }
+
+        .lyrics-visible #lyrics-view {
+            width: 40vw;
+        }
+
+        .lyrics-visible {
+            gap: 100px;
+        }
+
+        #lyrics-view {
+            width: 0;
+            overflow: hidden;
+            box-sizing: border-box;
+            position: relative;
+            mask-image: linear-gradient(rgba(0, 0, 0, 0), black 40%, black 60%, rgba(0, 0, 0, 0));
+            transition: opacity 0.5s ease-out, width 0.25s ease-out;
+        }
+
+        #lyrics-view > p {
+            /* font-size: 3.1em; */
+            font-size: calc(1.1em + 1.5vw);
+
+            position: absolute;
+
+            right: 6%;
+            left: 6%;
+
+            font-weight: bold;
+
+            transition: top 0.2s ease-in-out, opacity 0.2s ease-out, color 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+            }
+        }
+
+    </style>
+</head>
+<body onload="start()">
+    
+    <!-- <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vw; z-index: 1; opacity: 0.5; display: flex; justify-content: center;">
+        <img src="/161lyrics.png" style="height: 100vh;">
+    </div> -->
+
+    <div id="canvasContainer">
+        <canvas id="glcanvas"></canvas>
+    </div>
+
+    <div id="main-container">
+        <div id="now-playing-view">
+            <img id="album-art" crossorigin="anonymous">
+            <div id="now-playing-info">
+                <div>
+                    <div id="progress-bar-container">
+                        <div id="progress-times">
+                            <p>0:01</p>
+                            <p>2:49</p>
+                        </div>
+                        <div id="progress-bar">
+                            <div></div>
+                        </div>
+                    </div>
+                    <div id="song-info">
+                        <p id="title" class="highlighted">Gurenge</p>
+                        <p id="metadata">LiSA — Gurenge - EP</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="lyrics-view">
+
+        </div>
+    </div>
+
+</body>
+<script>
+
+    const clientId = '13a58573df5945fb9bf1bd8f8401d47b';
+    const redirectUri = 'http://127.0.0.1:1851/';
+    const scope = 'user-read-playback-state user-library-read';
+
+    const generateRandomString = (length) => {
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const values = crypto.getRandomValues(new Uint8Array(length));
+        return values.reduce((acc, x) => acc + possible[x % possible.length], "");
+    }
+    const sha256 = async (plain) => {
+        const encoder = new TextEncoder()
+        const data = encoder.encode(plain)
+        return window.crypto.subtle.digest('SHA-256', data)
+    }
+    const base64encode = (input) => {
+        return btoa(String.fromCharCode(...new Uint8Array(input)))
+            .replace(/=/g, '')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_');
+    }
+    
+    const getToken = async code => {
+        let codeVerifier = localStorage.getItem('code_verifier');
+
+        const payload = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                client_id: clientId,
+                grant_type: 'authorization_code',
+                code,
+                redirect_uri: redirectUri,
+                code_verifier: codeVerifier,
+            }),
+        }
+        let url = 'https://accounts.spotify.com/api/token';
+        const body = await fetch(url, payload);
+        const response =await body.json();
+        if (response.error) {
+            throw new Error(response.error_description);
+        }
+        localStorage.setItem('access_token', response.access_token);
+    }
+
+    async function signInToSpotify() {
+        const codeVerifier  = generateRandomString(64);
+        const hashed = await sha256(codeVerifier)
+        const codeChallenge = base64encode(hashed);
+
+        const authUrl = new URL("https://accounts.spotify.com/authorize")
+
+        window.localStorage.setItem('code_verifier', codeVerifier);
+
+        const params =  {
+            response_type: 'code',
+            client_id: clientId,
+            scope,
+            code_challenge_method: 'S256',
+            code_challenge: codeChallenge,
+            redirect_uri: redirectUri,
+        }
+
+        authUrl.search = new URLSearchParams(params).toString();
+        window.location.href = authUrl.toString();
+    }
+    
+    async function connect() {
+        const urlParams = new URLSearchParams(window.location.search);
+        let code = urlParams.get('code');
+        try {
+            await getToken(code);
+            updateView();
+            setInterval(() => {
+                updateView();
+            }, SPOTIFY_POLL_RATE);
+        } catch (e) {
+            signInToSpotify();
+        }
+    }
+    
+</script>
+<script>
+    let currentLyricIndex = 0;
+    let prevAlbumArtUrl = null;
+    let prevSongId = null;
+    let activeTexture = "u_texture_one";
+    async function updateView() {
+        // console.log('Updating view...');
+        let currentlyPlaying = await getCurrentlyPlaying();
+        if (!currentlyPlaying) {
+            currentlyPlaying = {
+                sondId: null,
+                songName: '',
+                artistName: null,
+                albumName: null,
+                currentPlaybackTime: null,
+                totalSongLength: null,
+                albumArtUrl: 'no_song.svg'
+            }   
+        }
+
+        if (currentlyPlaying.albumArtUrl == prevAlbumArtUrl) {
+            currentlyPlaying.albumArtUrl = null
+        } else {
+            prevAlbumArtUrl = currentlyPlaying.albumArtUrl;
+        }
+        // console.log('Updating view with currently playing track:', currentlyPlaying);
+        playSong(currentlyPlaying.songId, currentlyPlaying.songName, currentlyPlaying.albumName, currentlyPlaying.artistName, currentlyPlaying.currentPlaybackTime, currentlyPlaying.totalSongLength, currentlyPlaying.albumArtUrl);
+    }
+
+    function fadeOutLyrics(lyricLines) {
+        let lyricsView = document.getElementById("lyrics-view");
+        setTimeout(() => {
+            lyricsView.style.opacity = 0;
+        }, 500);
+        let fadeOutStartFrom = -1
+        for (let i = 0; i < lyricsView.children.length; i++) {
+            let lyric = lyricsView.children[i];
+            if (lyric.style.opacity == 1) {
+                fadeOutStartFrom = i;
+                break;
+            }
+        }
+        if (fadeOutStartFrom == -1 || fadeOutStartFrom >= lyricsView.children.length - 1) {
+            return;
+        }
+        for (let i = fadeOutStartFrom; i < lyricsView.children.length; i++) {
+            let lyric = lyricsView.children[i];
+            lyric.style.animation = `fadeOut 0.5s ease-in-out ${(i - fadeOutStartFrom) * 0.1}s forwards`;
+        }
+    }
+
+    function fillInLyrics(lyricLines) {
+        let lyricsView = document.getElementById("lyrics-view");
+        lyricsView.innerHTML = "";
+
+        let currentTop = 0;
+        currentLyricIndex = 0;
+
+        for (let i = 0; i < lyricLines.length; i++) {
+            let p = document.createElement("p");
+            p.innerText = lyricLines[i].text;
+            p.setAttribute("data-start", lyricLines[i].time);
+            p.style.transform = "translateY(-50%)";
+            lyricsView.appendChild(p);
+            lineHeight = p.getBoundingClientRect().height / 59;
+            currentTop += (lineHeight - 1) * 25
+            p.style.top = `calc(50% + ${currentTop}px)`;
+            p.setAttribute("data-top", currentTop);
+            currentTop += (lineHeight - 1) * 25
+            currentTop += 100;
+        }
+
+        setTimeout(() => {
+            lyricsView.style.opacity = 1;
+        }, 100);
+    }
+
+    function scrollToLyric(index) {
+        let lyricsView = document.getElementById("lyrics-view");
+        if (lyricsView.children.length == 0) {
+            return;
+        }
+        let focusedLyric = lyricsView.children[index];
+        let top = parseInt(focusedLyric.getAttribute("data-top"));
+        
+        for (let i = 0; i < lyricsView.children.length; i++) {
+            let lyric = lyricsView.children[i];
+            let newTop = parseInt(lyric.getAttribute("data-top")) - top;
+            lyric.setAttribute("data-top", newTop);
+            lyric.style.top = `calc(50% + ${newTop}px)`;
+            if (newTop < 0) {
+                lyric.style.opacity = 0;
+            } else {
+                lyric.style.opacity = 1;
+            }
+            if (lyric == focusedLyric) {
+                lyric.style.color = "white";
+            } else {
+                lyric.style.color = "rgba(255, 255, 255, 0.5)";
+            }
+        }
+
+    }
+
+    function hideLyrics() {
+        let mainContainer = document.getElementById("main-container");
+        mainContainer.classList.remove("lyrics-visible");
+    }
+
+    function showLyrics() {
+        let mainContainer = document.getElementById("main-container");
+        mainContainer.classList.add("lyrics-visible");
+    }
+
+    // fillInLyrics([
+    //     "Right here, right now",
+    //     "I put the offer out",
+    //     "I don't want to chase you down",
+    //     "I know you see it",
+    //     // "You run with me",
+    //     // "And I can cut you free",
+    //     // "Out of the drudgery",
+    //     // "And walls you keep in",
+    //     // "So trade that typical",
+    //     // "For something colorful",
+    //     // "And if it's crazy, live a little crazy",
+    //     // "You can play it sensible",
+    //     // "A king of conventional",
+    //     // "Or you can risk it all and see",
+    //     // "Don't you wanna get away from the same old part you gotta play",
+    //     // "'Cause I got what you need",
+    //     // "So come with me and take the ride",
+    //     // "It'll take you to the other side",
+    //     // "Cause you can do like you do",
+    //     // "Or you can do like me",
+    //     // "Stay in the cage, or you'll finally take the key",
+    //     // "Oh, damn! Suddenly you're free to fly",
+    //     // "It'll take you to the other side",
+    //     // "Okay, my friend, you want to cut me in",
+    //     // "Well, I hate to tell you, but it just won't happen",
+    //     // "So thanks, but no",
+    //     // "I think I'm good to go",
+    //     // "Cause I quite enjoy the life you say I'm trapped in",
+    // ]);
+
+    let SPOTIFY_POLL_RATE = 1000
+
+    let lastRecognizedPlaytime = -1;
+    let lastLastRecognizedPlaytime = -1;
+    let lastTimeUpdated = -1;
+    let waitingOnLyrics = false;
+    function playSong(song_id, title, album, artist, current_time, total_time, album_art_src) {
+        document.getElementById("title").innerText = title;
+        if (artist == null || album == null) {
+            document.getElementById("metadata").innerText = "";
+        } else {
+            document.getElementById("metadata").innerText = `${artist} — ${album}`;
+        }
+        
+        if (current_time == null || total_time == null) {
+            document.getElementById("progress-times").children[0].innerText = "--:--";
+            document.getElementById("progress-times").children[1].innerText = "--:--";
+            document.getElementById("progress-bar").children[0].style.width = "0%";
+        } else {
+            let minutes = Math.floor(current_time / 60000);
+            let seconds = ((current_time % 60000) / 1000).toFixed(0);
+            if (seconds < 10) {
+                seconds = `0${seconds}`;
+            }
+            document.getElementById("progress-times").children[0].innerText = `${minutes}:${seconds}`;
+
+            minutes = Math.floor(total_time / 60000);
+            seconds = ((total_time % 60000) / 1000).toFixed(0);
+            if (seconds < 10) {
+                seconds = `0${seconds}`;
+            }
+            document.getElementById("progress-times").children[1].innerText = `${minutes}:${seconds}`;
+
+            let progress = current_time / total_time * 100;
+            document.getElementById("progress-bar").children[0].style.width = `${progress}%`;
+        }
+        
+        if (album_art_src) {
+            document.getElementById("album-art").src = album_art_src;
+            initTextures(album_art_src);
+        }
+
+        if (song_id != prevSongId) {
+            let lyricsView = document.getElementById("lyrics-view"); 
+            waitingOnLyrics = true;
+            fadeOutLyrics(lyricsView.children);
+
+            prevSongId = song_id;
+            if (song_id == null) {
+                return;
+            }
+            fetch(`https://ytm.nwvbug.com/request-lyrics/${title} [By] ${artist}`).then(text => {
+                return text.text()
+            }).then(text => {
+                if (text == "no_lyrics_found") {
+                    waitingOnLyrics = false;
+                    hideLyrics();
+                    return;
+                }
+                result = JSON.parse(text)
+                console.log(result)
+                if (result.source == "ytm") {
+                    showLyrics();
+                    setTimeout(() => {
+                        fillInLyrics(result.lrc)
+                        waitingOnLyrics = false;
+                    }, 250);
+                }
+            });
+        }
+
+        lastLastRecognizedPlaytime = lastRecognizedPlaytime;
+        lastRecognizedPlaytime = current_time;
+        lastTimeUpdated = Date.now();
+    }
+
+
+    function updateLyrics() {
+        if (waitingOnLyrics) {
+            return;
+        }
+        let estimatedCurrentTime = lastRecognizedPlaytime / 1000
+        if (lastRecognizedPlaytime != lastLastRecognizedPlaytime) {
+            estimatedCurrentTime += (Date.now() - lastTimeUpdated) / 1000;
+        }
+        let lyricsView = document.getElementById("lyrics-view");
+        let nextLyric = lyricsView.children[currentLyricIndex + 1];
+        if (nextLyric) {
+            while (parseFloat(nextLyric.getAttribute("data-start")) < estimatedCurrentTime) {
+                currentLyricIndex++;
+                nextLyric = lyricsView.children[currentLyricIndex + 1];
+                if (!nextLyric) {
+                    break;
+                }
+            }
+        }
+
+
+        nextLyric = lyricsView.children[currentLyricIndex - 1];
+        if (nextLyric) {
+            while (parseFloat(nextLyric.getAttribute("data-start")) > estimatedCurrentTime) {
+                currentLyricIndex--;
+                nextLyric = lyricsView.children[currentLyricIndex];
+                if (!nextLyric) {
+                    break;
+                }
+            }
+        }
+        scrollToLyric(currentLyricIndex);
+    }
+
+    setInterval(() => {
+        updateLyrics();
+    }, 250);
+
+    async function getCurrentlyPlaying() {
+        const token = localStorage.getItem('access_token'); // Retrieve the access token from localStorage
+
+        const response = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`, // Pass the access token as a Bearer token
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => {
+            if (response.status === 401) {
+                console.log('Token expired. Redirecting to sign in page.');
+                signInToSpotify();
+            }
+            if (response.status === 204) {
+                console.log('No track is currently playing.');
+                return null;
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data) {
+                let currentlyPlaying = {
+                    songId: data.item.id,
+                    songName: data.item.name,
+                    artistName: data.item.artists.map(artist => artist.name).join(', '),
+                    albumName: data.item.album.name,
+                    albumArtUrl: data.item.album.images[0]?.url || null,
+                    currentPlaybackTime: data.progress_ms,
+                    totalSongLength: data.item.duration_ms
+                };
+                return currentlyPlaying;
+            } else {
+                return null;
+            }
+        })
+        
+        return response;
+    }
+
+    connect()
+</script>
+<script type="text/javascript">
+    let gl;
+    let sId;
+    let vBuff;
+    let iBuff;
+    let timer = 0;
+
+    let targetTexture = 0;
+    let blendAmount = 0;
+
+    function initWebGL() {
+        let canvas = document.getElementById("glcanvas");
+        gl = canvas.getContext("webgl2")
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        initShaderProgram();
+        initBuffers();
+    }
+
+    function initShaderProgram() {
+        sId = gl.createProgram();
+        let vertId = gl.createShader(gl.VERTEX_SHADER);
+        let fragId = gl.createShader(gl.FRAGMENT_SHADER);
+        let vert = document.getElementById("vertScript").text;
+        let frag = document.getElementById("fragScript").text;
+
+        gl.shaderSource(vertId, vert);
+        gl.shaderSource(fragId, frag);
+        gl.compileShader(vertId);
+        gl.compileShader(fragId);
+        if (!gl.getShaderParameter(vertId, gl.COMPILE_STATUS)) {
+            alert("Vertex Shader Compiler Error: " + gl.getShaderInfoLog(vertId));
+            gl.deleteShader(vertId);
+            return;
+        }
+        if (!gl.getShaderParameter(fragId, gl.COMPILE_STATUS)) {
+            alert("Fragment Shader Compiler Error: " + gl.getShaderInfoLog(fragId));
+            gl.deleteShader(fragId);
+            return;
+        }
+        gl.attachShader(sId, vertId);
+        gl.attachShader(sId, fragId);
+        gl.linkProgram(sId);
+        if (!gl.getProgramParameter(sId, gl.LINK_STATUS)) {
+            alert("Shader Linking Error: " + gl.getProgramInfoLog(sId));
+        }
+    }
+
+    function initBuffers() {
+        let vertices = new Float32Array([
+            // Position (xyz)    // UV coordinates (xy)
+            -1.0, -1.0, 0.0,    0.0, 0.0,
+            -1.0,  1.0, 0.0,    0.0, 1.0,
+            1.0,  1.0, 0.0,    1.0, 1.0,
+            1.0, -1.0, 0.0,    1.0, 0.0
+        ]);
+        let indices = new Uint16Array([0, 1, 3, 2]);
+        vBuff = gl.createBuffer()
+        gl.bindBuffer(gl.ARRAY_BUFFER, vBuff);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+        iBuff = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, iBuff);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+    }
+
+    function initTextures(album_art_src) {
+        if (activeTexture == "u_texture_one") {
+            activeTexture = "u_texture_two";
+        } else {
+            activeTexture = "u_texture_one";
+        }
+
+        console.log("Loading texture: ", album_art_src);
+        console.log("Active texture: ", activeTexture);
+
+
+        let newImage = document.createElement("img");
+        newImage.setAttribute("crossorigin", "anonymous");
+        newImage.src = album_art_src;
+        newImage.onload = function () {
+
+            let canvas = document.createElement("canvas")
+            let ctx = canvas.getContext("2d");
+            ctx.imageSmoothingEnabled = false;
+            canvas.width = newImage.width / 16;
+            canvas.height = newImage.height / 16;
+            ctx.drawImage(newImage, 0, 0, canvas.width, canvas.height);
+
+            let textureUnit = activeTexture === "u_texture_one" ? gl.TEXTURE0 : gl.TEXTURE1;
+            let textureUnitIndex = activeTexture === "u_texture_one" ? 0 : 1;
+
+            let uMainTex = gl.getUniformLocation(sId, activeTexture);
+            gl.activeTexture(textureUnit);
+            gl.uniform1i(uMainTex, textureUnitIndex);
+
+            const texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+
+            targetTexture = Math.abs(1 - textureUnitIndex);
+        };
+    }
+    
+    window.requestAnimFrame = (function () {
+        return window.requestAnimationFrame ||
+            function (callback) {
+                window.setTimeout(callback, 1000 / 60);
+            };
+    })();
+
+
+    function animationLoop() {
+        requestAnimFrame(animationLoop);
+        render();
+    }
+
+    function render() {
+        timer += 0.1;
+        gl.useProgram(sId);
+
+        let timeID = gl.getUniformLocation(sId, "u_time");
+        gl.uniform1f(timeID, timer / 100);
+
+        let resId = gl.getUniformLocation(sId, "u_resolution");
+        let canvasBox = gl.canvas.getBoundingClientRect();
+        gl.uniform2f(resId, canvasBox.width, canvasBox.height);
+
+        let attId = gl.getAttribLocation(sId, "position");
+        gl.enableVertexAttribArray(attId);
+        gl.bindBuffer(gl.ARRAY_BUFFER, vBuff);
+        gl.vertexAttribPointer(attId, 3, gl.FLOAT, false, 5 * 4, 0);
+
+        let uvId = gl.getAttribLocation(sId, "texCoord");
+        gl.enableVertexAttribArray(uvId);
+        gl.vertexAttribPointer(uvId, 2, gl.FLOAT, false, 5 * 4, 3 * 4); // offset is 3 floats * 4 bytes
+
+        let blendAmountId = gl.getUniformLocation(sId, "blend_amount");
+        gl.uniform1f(blendAmountId, blendAmount);
+
+        if (targetTexture == 0 && blendAmount > 0) {
+            blendAmount -= 0.02;
+            if (blendAmount < 0) {
+                blendAmount = 0;
+            }
+        }
+        if (targetTexture == 1 && blendAmount < 1) {
+            blendAmount += 0.02;
+            if (blendAmount > 1) {
+                blendAmount = 1;
+            }
+        }
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, iBuff);
+        gl.drawElements(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, 0);
+    }
+
+    function start() {
+        initWebGL();
+        animationLoop();
+        fixSize();
+    }
+
+    function fixSize() {
+        let canvas = document.getElementById("glcanvas");
+        canvas.width = canvas.getBoundingClientRect().width;
+        canvas.height = canvas.getBoundingClientRect().height;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+
+    window.onresize = fixSize;
+</script>
+<script id="vertScript" type="x-shader/x-vertex">#version 300 es
+    layout(location = 0) in vec3 position;
+    layout(location = 1) in vec2 texCoord;
+    
+    out vec2 uv;  // Pass texture coordinates to the fragment shader
+    
+    void main() {
+        uv = texCoord;
+        gl_Position = vec4(position, 1.0);
+    }
+</script>
+<script id="fragScript" type="x-shader/x-fragment">#version 300 es
+precision highp float;
+precision highp sampler2D;
+
+in vec2 uv;
+out vec4 out_color;
+
+uniform vec2 u_resolution;
+uniform float u_time;
+uniform sampler2D u_texture_one;
+uniform sampler2D u_texture_two;
+uniform float blend_amount;
+
+float[] polynomial_intercepts_x = float[6](0., 0., 0.3, 0.6, 0.78, 1.);
+float[] polynomial_intercepts_y = float[6](0., 0.34, 0.34, 0.58, 0.78, 1.);
+
+float evaluatePolynomial(float x, float y, float[6] intercepts) {
+    float out_val = x;
+    for (int i = 0; i < 6; i++) {
+        float intercept_wiggle = 0.;
+        if (i == 0){
+            intercept_wiggle = (sin(u_time * (1. - intercepts[i])) * 0.05) - 0.05;
+        }
+        if (i != 0 && i != 5) {
+            intercept_wiggle = sin(u_time * (1. - intercepts[i])) * 0.2; // allows the x-intercepts to wiggle by 0.1
+        }
+        if (i == 5) {
+            intercept_wiggle = (sin(u_time * (1. - intercepts[i])) * 0.05) + 0.05;
+        }
+        out_val *= ((x * y) - (intercepts[i] + intercept_wiggle)) * 2.;
+    }
+
+    out_val *= 3.;
+    return out_val;
+}
+
+vec2 rotateUV(vec2 uv, float angle) {
+    uv -= 0.5;
+    float cosA = cos(angle);
+    float sinA = sin(angle);
+    mat2 rotation = mat2(
+        cosA, -sinA,
+        sinA, cosA
+    );
+    uv = rotation * uv;
+    uv += 0.5;
+
+    return uv;
+}
+
+void main(){
+    vec2 sp = uv * u_resolution / u_resolution.x;
+    sp = rotateUV(sp, u_time * 0.1);
+    vec2 sample_point = vec2(sp.x + evaluatePolynomial(sp.y, sp.x, polynomial_intercepts_x), sp.y + evaluatePolynomial(sp.x, sp.y, polynomial_intercepts_y));
+    out_color = (texture(u_texture_one, sample_point) * blend_amount) + (texture(u_texture_two, sample_point) * (1. - blend_amount));
+}
+</script>
+</html>
