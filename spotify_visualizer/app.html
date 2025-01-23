@@ -250,7 +250,8 @@
 <script>
 
     const clientId = '13a58573df5945fb9bf1bd8f8401d47b';
-    const redirectUri = 'http://127.0.0.1:1851/';
+    const redirectUri = window.location.origin + window.location.pathname;
+    console.log(redirectUri);
     const scope = 'user-read-playback-state user-library-read';
 
     const generateRandomString = (length) => {
