@@ -18,7 +18,7 @@
             width: 100%;
             height: 100%;
 
-            filter: blur(50px) contrast(110%) saturate(2) brightness(65%)
+            filter: blur(30px) contrast(110%) saturate(2) brightness(65%)
         }
 
         /* preblur image while respeting contrast tso that i can use a lesser blur here */
@@ -529,7 +529,9 @@
             if (song_id == null) {
                 return;
             }
+            console.log("Requesting lyrics for", title, "by", artist);
             fetch(`https://ytm.nwvbug.com/request-lyrics/${title} [By] ${artist}`).then(text => {
+                console.log(text)
                 return text.text()
             }).then(text => {
                 if (text == "no_lyrics_found") {
@@ -538,14 +540,19 @@
                     return;
                 }
                 result = JSON.parse(text)
-                console.log(result)
-                if (result.source == "ytm") {
-                    showLyrics();
-                    setTimeout(() => {
-                        fillInLyrics(result.lrc)
-                        waitingOnLyrics = false;
-                    }, 250);
+                if (result.source != "ytm") {
+                    console.log(result.source)
+                    console.log("Lyrics not found")
+                    waitingOnLyrics = false;
+                    hideLyrics();
+                    return;
                 }
+                console.log("Lyrics found")
+                showLyrics();
+                setTimeout(() => {
+                    fillInLyrics(result.lrc)
+                    waitingOnLyrics = false;
+                }, 250);
             });
         }
 
@@ -716,13 +723,16 @@
         newImage.setAttribute("crossorigin", "anonymous");
         newImage.src = album_art_src;
         newImage.onload = function () {
-
             let canvas = document.createElement("canvas")
             let ctx = canvas.getContext("2d");
             ctx.imageSmoothingEnabled = false;
             canvas.width = newImage.width / 16;
             canvas.height = newImage.height / 16;
             ctx.drawImage(newImage, 0, 0, canvas.width, canvas.height);
+
+            canvas = pixelSortH(canvas);
+            canvas = pixelSortV(canvas);
+            
 
             let textureUnit = activeTexture === "u_texture_one" ? gl.TEXTURE0 : gl.TEXTURE1;
             let textureUnitIndex = activeTexture === "u_texture_one" ? 0 : 1;
@@ -810,6 +820,111 @@
     }
 
     window.onresize = fixSize;
+</script>
+<script>
+    const threshold = 0;
+    const vertical = false;
+    const invert = false;
+
+    // Stolen from here http://feiss.github.io/pixelsorting/
+    function pixelSortH(canvas){
+        let c = canvas.getContext('2d');
+        let b = canvas
+        for(var row= 0; row< b.height; row++){
+            var imdata = c.getImageData(0, row, b.width, 1);
+            var data = imdata.data;
+
+            var pixels= getPixelsArray(data);
+            
+            var start= 0;
+            var end = findValueLess(pixels, row, threshold, start);
+            while (start<b.width) {
+                var range= pixels.splice(start, end-start);
+                range.sort(invert?simpleMeanSortInverted:simpleMeanSort);
+                pixels.splice.apply(pixels, [start,0].concat(range));
+                
+                start= end;
+                end= findValueLess(pixels, row, threshold, start+1);
+            }
+            setDataFromPixelsArray(data, pixels);
+            c.putImageData(imdata, 0, row);
+        }
+        return b;
+    }
+
+    function pixelSortV(canvas) {
+        let c = canvas.getContext('2d');
+        let b = canvas;
+        for(var col= 0; col< b.width; col++){
+            var imdata= c.getImageData(col, 0, 1, b.height);
+            var data= imdata.data;
+
+            var pixels= getPixelsArray(data);
+            
+            var start= 0;
+            var end= findValueLess(pixels, col, threshold, start);
+            while(start<b.height){
+                var range= pixels.splice(start, end-start);
+                range.sort(invert?simpleMeanSortInverted:simpleMeanSort);
+                pixels.splice.apply(pixels, [start,0].concat(range));
+                
+                start= end;
+                end= findValueLess(pixels, col, threshold, start+1);
+            }
+                
+            setDataFromPixelsArray(data, pixels);
+            c.putImageData(imdata, col, 0);
+        }
+        return b;
+    }
+
+    function getPixelsArray(data){
+        var p= [], c;
+        for (var i = 0; i < data.length/4; i++) {
+            c= i*4;
+            p.push({r: data[c+0], g: data[c+1], b: data[c+2]});
+        };
+        return p;
+    }
+
+    function simpleMeanSort(a,b){
+        var aa= (a.r+a.g+a.b)/3;
+        var bb= (b.r+b.g+b.b)/3;
+        return aa<bb?-1: (aa>bb?1:0);
+    }
+    function simpleMeanSortInverted(a,b){
+        var aa= (a.r+a.g+a.b)/3;
+        var bb= (b.r+b.g+b.b)/3;
+        return aa>bb?-1: (aa<bb?1:0);
+    }
+
+    function setDataFromPixelsArray(data, pixels){
+        var c;
+        for (var i = 0; i < pixels.length; i++) {
+            c= i*4;
+            data[c+0]= pixels[i].r;
+            data[c+1]= pixels[i].g;
+            data[c+2]= pixels[i].b;
+        }
+    }
+
+    function findValue(pixels, row, val, start){
+        for (var i=start; i< pixels.length; i++){
+            if (pixels[i].r==val.r && pixels[i].g==val.g && pixels[i].b==val.b) {
+                return i;
+            }
+        }
+        return pixels.length;
+    }
+
+    function findValueLess(pixels, row, val, start){
+        for (var i=start; i< pixels.length; i++){
+            if ((pixels[i].r+pixels[i].g+pixels[i].b)/3 < val) {
+                return i;
+            }
+        }
+        return pixels.length;
+    }
 </script>
 <script id="vertScript" type="x-shader/x-vertex">#version 300 es
     layout(location = 0) in vec3 position;
