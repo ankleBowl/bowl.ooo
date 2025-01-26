@@ -18,7 +18,7 @@
             width: 100%;
             height: 100%;
 
-            filter: contrast(110%) saturate(2) brightness(65%)
+            filter: blur(30px) contrast(110%) saturate(2) brightness(65%)
         }
 
         /* preblur image while respeting contrast tso that i can use a lesser blur here */
@@ -726,8 +726,8 @@
             let canvas = document.createElement("canvas")
             let ctx = canvas.getContext("2d");
             ctx.imageSmoothingEnabled = false;
-            canvas.width = 40;
-            canvas.height = 40;
+            canvas.width = newImage.width / 16;
+            canvas.height = newImage.height / 16;
             ctx.drawImage(newImage, 0, 0, canvas.width, canvas.height);
 
             canvas = pixelSortH(canvas);
@@ -771,7 +771,7 @@
         gl.useProgram(sId);
 
         let timeID = gl.getUniformLocation(sId, "u_time");
-        gl.uniform1f(timeID, timer / 20);
+        gl.uniform1f(timeID, timer / 100);
 
         let resId = gl.getUniformLocation(sId, "u_resolution");
         let canvasBox = gl.canvas.getBoundingClientRect();
@@ -938,86 +938,60 @@
     }
 </script>
 <script id="fragScript" type="x-shader/x-fragment">#version 300 es
-    precision highp float;
-    precision highp sampler2D;
-    
-    // normalized coordinates, (0,0) is the bottom left
-    in vec2 uv;
-    // resulting fragment color, you may name it whatever you like
-    out vec4 out_color;
-    
-    // @note you can hover over symbols, variables, struct types and functions for more info
-    
-    // size of the canvas in pixels
-    uniform vec2 u_resolution;
-    // elapsed time since shader compile in seconds
-    uniform float u_time;
-    // mouse pixel coordinates are in canvas space, (0,0) is top left
-    uniform vec4 u_mouse;
-    // texture array
-    uniform sampler2D u_texture_one;
-    uniform sampler2D u_texture_two;
-    uniform float blend_amount;
-    
-    float curveEquation(float uv_y) {
-        float sinWave = -sin(uv_y * 5.) / 3.;
-        float linear = sin(u_time) * (uv_y * 5.) / 3.;
-    
-        float blendAmount = (sin(u_time * 1.4) + 1.) / 2.;
-    
-        sinWave = sinWave * blendAmount + (linear * (1. - blendAmount));
-    
-        sinWave += cos(uv.x * 4.35 + u_time) * 0.1;
-        sinWave += cos(uv.x * 6.51 + u_time) * 0.05;
-        return sinWave;
-    }
-    
-    vec3 colorRamp(float t, vec3 colors[5]) {
-        if (t >= 1.0) return colors[4];
-        if (t <= 0.0) return colors[0];
-        
-        float segment = t * 4.0;
-        int index = int(segment);
-        float localT = fract(segment);
-        
-        return mix(colors[index], colors[index+1], localT);
+precision highp float;
+precision highp sampler2D;
+
+in vec2 uv;
+out vec4 out_color;
+
+uniform vec2 u_resolution;
+uniform float u_time;
+uniform sampler2D u_texture_one;
+uniform sampler2D u_texture_two;
+uniform float blend_amount;
+
+float[] polynomial_intercepts_x = float[6](0., 0., 0.3, 0.6, 0.78, 1.);
+float[] polynomial_intercepts_y = float[6](0., 0.34, 0.34, 0.58, 0.78, 1.);
+
+float evaluatePolynomial(float x, float y, float[6] intercepts) {
+    float out_val = x;
+    for (int i = 0; i < 6; i++) {
+        float intercept_wiggle = 0.;
+        if (i == 0){
+            intercept_wiggle = (sin(u_time * (1. - intercepts[i])) * 0.05) - 0.05;
+        }
+        if (i != 0 && i != 5) {
+            intercept_wiggle = sin(u_time * (1. - intercepts[i])) * 0.2; // allows the x-intercepts to wiggle by 0.1
+        }
+        if (i == 5) {
+            intercept_wiggle = (sin(u_time * (1. - intercepts[i])) * 0.05) + 0.05;
+        }
+        out_val *= ((x * y) - (intercepts[i] + intercept_wiggle)) * 2.;
     }
 
-    vec3 blendTextureSample(vec2 uv) {
-        return mix(texture(u_texture_one, uv).rgb, texture(u_texture_two, uv).rgb, 1. - blend_amount);
-    }
-    
-    void main(){
-        vec2 sample_point = vec2(uv.x - 0.5, uv.y - 0.5);
-        // float col = pow(abs(sample_point.x - curveEquation(sample_point.y)), sin(u_time + uv.y) + 2.2 * 0.5);
-        float power = ((sin(u_time + (uv.y * 5.)) + 1.) / 2.) + 0.6;
-        // float power = 0.1;
-        float val = (sample_point.x - curveEquation(sample_point.y));
-        float col = pow(abs(val), power) + 0.5;
-        if (val < 0.) {
-            col = 1. - col;
-        }
-    
-        float signVal = sign(sin(u_time * 0.25));
-        if (signVal < 0.) {
-            col = 1. - col;
-        } else {
-            col = col;
-        }
-        // col *= abs(sin(u_time * 0.25));
-        col += sin(u_time * 1.95) / 3.;
-        col /= 2.;
-        col += 0.25;
-        
-        vec3 colors[5] = vec3[5](
-            blendTextureSample(vec2(0.1, 0.1)),
-            blendTextureSample(vec2(0.3, 0.3)),
-            blendTextureSample(vec2(0.5, 0.5)),
-            blendTextureSample(vec2(0.7, 0.7)),
-            blendTextureSample(vec2(0.9, 0.9))
-        );
-        out_color = vec4(colorRamp(col, colors), 1);
-    
-    }
+    out_val *= 3.;
+    return out_val;
+}
+
+vec2 rotateUV(vec2 uv, float angle) {
+    uv -= 0.5;
+    float cosA = cos(angle);
+    float sinA = sin(angle);
+    mat2 rotation = mat2(
+        cosA, -sinA,
+        sinA, cosA
+    );
+    uv = rotation * uv;
+    uv += 0.5;
+
+    return uv;
+}
+
+void main(){
+    vec2 sp = uv * u_resolution / u_resolution.x;
+    sp = rotateUV(sp, u_time * 0.1);
+    vec2 sample_point = vec2(sp.x + evaluatePolynomial(sp.y, sp.x, polynomial_intercepts_x), sp.y + evaluatePolynomial(sp.x, sp.y, polynomial_intercepts_y));
+    out_color = (texture(u_texture_one, sample_point) * blend_amount) + (texture(u_texture_two, sample_point) * (1. - blend_amount));
+}
 </script>
 </html>
