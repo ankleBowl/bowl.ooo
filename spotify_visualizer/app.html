@@ -18,7 +18,7 @@
             width: 100%;
             height: 100%;
 
-            filter: contrast(110%) saturate(2) brightness(65%)
+            filter: blur(10px) contrast(110%) saturate(2) brightness(65%)
         }
 
         /* preblur image while respeting contrast tso that i can use a lesser blur here */
@@ -48,7 +48,7 @@
             box-sizing: border-box;
             align-items: center;
             justify-content: center;
-            padding: 6vw;
+            padding: 0 6vw;
 
             transition: gap 0.25s ease-out;
         }
@@ -114,7 +114,7 @@
             height: 3.5px;
             border-radius: 3px;
             overflow: hidden;
-            background-color: rgba(255, 255, 255, 0.5);
+            background-color: rgba(255, 255, 255, 0.4);
         }
 
         #progress-bar > div {
@@ -132,7 +132,7 @@
         }
 
         p {
-            color: rgba(255, 255, 255, 0.5);
+            color: rgba(255, 255, 255, 0.4);
             margin: 0;
 
             font-size: 1.2em;
@@ -172,8 +172,9 @@
             overflow: hidden;
             box-sizing: border-box;
             position: relative;
-            mask-image: linear-gradient(rgba(0, 0, 0, 0), black 40%, black 60%, rgba(0, 0, 0, 0));
+            mask-image: linear-gradient(rgba(0, 0, 0, 0), black 50%, rgba(0, 0, 0, 0));
             transition: opacity 0.5s ease-out, width 0.25s ease-out;
+            height: 100%;
         }
 
         #lyrics-view > p {
@@ -188,6 +189,28 @@
             font-weight: bold;
 
             transition: top 0.2s ease-in-out, opacity 0.2s ease-out, color 0.2s ease-out;
+        }
+        #lyrics-view > * {
+            position: absolute;
+            right: 6%;
+            left: 6%;
+            transition: top 0.2s ease-in-out, opacity 0.2s ease-out, color 0.2s ease-out;
+        }
+
+        #lyrics-view > .song-pause {
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+            height: 30px;
+        }
+
+        #lyrics-view > .song-pause > div {
+            height: 18px;
+            width: 18px;
+            background-color: rgba(255, 255, 255, 0.4);
+            border-radius: 100%;
+
+            transition: background-color 0.2s linear;
         }
 
         @keyframes fadeIn {
@@ -392,15 +415,29 @@
         currentLyricIndex = 0;
 
         for (let i = 0; i < lyricLines.length; i++) {
-            let p = document.createElement("p");
-            p.innerText = lyricLines[i].text;
-            p.setAttribute("data-start", lyricLines[i].time);
-            p.style.transform = "translateY(-50%)";
-            lyricsView.appendChild(p);
-            lineHeight = p.getBoundingClientRect().height / 59;
+            // check if line contains ♪
+            var elem;
+            if (lyricLines[i].text.includes("♪")) {
+                elem = document.createElement("div");
+                elem.classList.add("song-pause");
+
+                for (let j = 0; j < 3; j++) {
+                    let subElem = document.createElement("div");
+                    elem.appendChild(subElem);
+                }
+
+            } else {
+                elem = document.createElement("p");
+                elem.innerText = lyricLines[i].text;
+            }
+
+            elem.setAttribute("data-start", lyricLines[i].time);
+            elem.style.transform = "translateY(-50%)";
+            lyricsView.appendChild(elem);
+            lineHeight = elem.getBoundingClientRect().height / 59;
             currentTop += (lineHeight - 1) * 25
-            p.style.top = `calc(50% + ${currentTop}px)`;
-            p.setAttribute("data-top", currentTop);
+            elem.style.top = `calc(50% + ${currentTop}px)`;
+            elem.setAttribute("data-top", currentTop);
             currentTop += (lineHeight - 1) * 25
             currentTop += 100;
         }
@@ -418,10 +455,18 @@
         let focusedLyric = lyricsView.children[index];
         let top = parseInt(focusedLyric.getAttribute("data-top"));
         
+        let j = 0
         for (let i = 0; i < lyricsView.children.length; i++) {
             let lyric = lyricsView.children[i];
             let newTop = parseInt(lyric.getAttribute("data-top")) - top;
             lyric.setAttribute("data-top", newTop);
+            // change transition duration based on distance from index
+            let transitionDuration = (Math.abs(i - index) * 0.1) + 0.3;
+            if (transitionDuration < 1) {
+                lyric.style.transition = `top ${transitionDuration}s cubic-bezier(0.13, -0.003, 0, 1.006), opacity 0.3s ease-out, color 0.3s ease-out`;
+            } else {
+                lyric.style.transition = `opacity 0.3s ease-out, color 0.3s ease-out`;
+            }
             lyric.style.top = `calc(50% + ${newTop}px)`;
             if (newTop < 0) {
                 lyric.style.opacity = 0;
@@ -431,7 +476,7 @@
             if (lyric == focusedLyric) {
                 lyric.style.color = "white";
             } else {
-                lyric.style.color = "rgba(255, 255, 255, 0.5)";
+                lyric.style.color = "rgba(255, 255, 255, 0.4)";
             }
         }
 
@@ -582,7 +627,6 @@
             }
         }
 
-
         nextLyric = lyricsView.children[currentLyricIndex - 1];
         if (nextLyric) {
             while (parseFloat(nextLyric.getAttribute("data-start")) > estimatedCurrentTime) {
@@ -594,6 +638,37 @@
             }
         }
         scrollToLyric(currentLyricIndex);
+
+        // if the currently selected lyric is a div
+        let currentLyric = lyricsView.children[currentLyricIndex];
+        console.log(currentLyric.tagName);
+        if (currentLyric.tagName != "DIV") {
+            return;
+        }
+        // figure out how long until the next lyric
+        let nextLyricStart = parseFloat(lyricsView.children[currentLyricIndex + 1].getAttribute("data-start"));
+
+        let thisLyricStart =  parseFloat(currentLyric.getAttribute("data-start"));
+        let timeUntilNextLyric = nextLyricStart - estimatedCurrentTime;
+        let totalLyricTime = nextLyricStart - thisLyricStart;
+
+        let percentageComplete = 1 - (timeUntilNextLyric / totalLyricTime);
+
+        let dotIndex = Math.floor(percentageComplete * 3);
+        let dotCompletion = percentageComplete * 3 - dotIndex;
+
+        for (let i = 0; i < 3; i++) {
+            let dot = currentLyric.children[i];
+            if (i == dotIndex) {
+                dotCompletion = dotCompletion * 0.6 + 0.4;
+                dot.style.backgroundColor = "rgba(255, 255, 255, " + dotCompletion + ")";
+            } else if (i > dotIndex) {
+                dot.style.backgroundColor = "rgba(255, 255, 255, 0.4)";
+            } else {
+                dot.style.backgroundColor = "rgba(255, 255, 255, 1)";
+            }
+        }
+
     }
 
     setInterval(() => {
@@ -771,7 +846,7 @@
         gl.useProgram(sId);
 
         let timeID = gl.getUniformLocation(sId, "u_time");
-        gl.uniform1f(timeID, timer / 20);
+        gl.uniform1f(timeID, timer / 100);
 
         let resId = gl.getUniformLocation(sId, "u_resolution");
         let canvasBox = gl.canvas.getBoundingClientRect();
@@ -959,6 +1034,48 @@
     uniform sampler2D u_texture_two;
     uniform float blend_amount;
     
+
+    float rand(vec2 c){
+        return fract(sin(dot(c.xy ,vec2(12.9898,78.233))) * 43758.5453);
+    }
+    
+    float noise(vec2 p, float freq ){
+        float unit = 1.;
+        vec2 ij = floor(p/unit);
+        vec2 xy = mod(p,unit)/unit;
+        //xy = 3.*xy*xy-2.*xy*xy*xy;
+        xy = .5*(1.-cos(3.1415*xy));
+        float a = rand((ij+vec2(0.,0.)));
+        float b = rand((ij+vec2(1.,0.)));
+        float c = rand((ij+vec2(0.,1.)));
+        float d = rand((ij+vec2(1.,1.)));
+        float x1 = mix(a, b, xy.x);
+        float x2 = mix(c, d, xy.x);
+        return mix(x1, x2, xy.y);
+    }
+    
+    float pNoise(vec2 p, int res){
+        float persistance = .5;
+        float n = 0.;
+        float normK = 0.;
+        float f = 4.;
+        float amp = 1.;
+        int iCount = 0;
+        for (int i = 0; i<50; i++){
+            n+=amp*noise(p, f);
+            f*=2.;
+            normK+=amp;
+            amp*=persistance;
+            if (iCount == res) break;
+            iCount++;
+        }
+        float nf = n/normK;
+        return nf*nf*nf*nf;
+    }
+
+
+
+
     float curveEquation(float uv_y) {
         float sinWave = -sin(uv_y * 5.) / 3.;
         float linear = sin(u_time) * (uv_y * 5.) / 3.;
@@ -973,41 +1090,66 @@
     }
     
     vec3 colorRamp(float t, vec3 colors[5]) {
-        if (t >= 1.0) return colors[4];
-        if (t <= 0.0) return colors[0];
+        t = fract(t - 0.1);
+        t = 1.0 - abs(2.0 * t - 1.0);
+        t *= 4.0;
         
-        float segment = t * 4.0;
-        int index = int(segment);
-        float localT = fract(segment);
+        vec3 finalColor = vec3(0.0);
+        float totalWeight = 0.0;
         
-        return mix(colors[index], colors[index+1], localT);
+        for(int i = 0; i < 5; i++) {
+            float dist = abs(float(i) - t);
+            float weight = 1.0 - smoothstep(0.0, 3.0, dist);
+            finalColor += colors[i] * weight;
+            totalWeight += weight;
+        }
+        
+        return finalColor / totalWeight;
     }
 
     vec3 blendTextureSample(vec2 uv) {
         return mix(texture(u_texture_one, uv).rgb, texture(u_texture_two, uv).rgb, 1. - blend_amount);
     }
+
+    float normalizedSine(float t) {
+        return (sin(t) + 1.) / 2.;
+    }
     
     void main(){
         vec2 sample_point = vec2(uv.x - 0.5, uv.y - 0.5);
-        // float col = pow(abs(sample_point.x - curveEquation(sample_point.y)), sin(u_time + uv.y) + 2.2 * 0.5);
-        float power = ((sin(u_time + (uv.y * 5.)) + 1.) / 2.) + 0.6;
-        // float power = 0.1;
+        // float power = ((sin(u_time + (uv.y * 5.)) + 1.) / 2.) + 0.7;
+        float power = normalizedSine(u_time + (uv.y * 5.)) * 3. + 0.3;
         float val = (sample_point.x - curveEquation(sample_point.y));
+
+        float isNeg = sign(val);
         float col = pow(abs(val), power) + 0.5;
-        if (val < 0.) {
-            col = 1. - col;
+        col = col * isNeg;
+
+        //float signVal = sign(sin(u_time * 0.25));
+        //if (signVal < 0.) {
+        //    col = 1. - col;
+        //} else {
+        //    col = col;
+        //}
+        //col *= abs(sin(u_time * 0.25));
+        // col += sin(u_time * 1.95) / 3.;
+
+        col += sin(u_time + (sin(u_time) * uv.x) + (cos(u_time) * uv.y)) / 2.;
+        // if (col > 1.) {
+        //     col = 2. - col;
+        // }
+        // if (val < 0.) {
+        //     col = abs(col);
+        // }
+
+        if (val < 0.01 && val > -0.01) {
+            // out_color = vec4(1., 0., 0., 1.);
+            // return;
         }
-    
-        float signVal = sign(sin(u_time * 0.25));
-        if (signVal < 0.) {
-            col = 1. - col;
-        } else {
-            col = col;
-        }
-        // col *= abs(sin(u_time * 0.25));
-        col += sin(u_time * 1.95) / 3.;
-        col /= 2.;
-        col += 0.25;
+
+        // col *= 0.5;
+        col += u_time * 0.5;
+        col += pNoise(uv * 10., 5) * 0.05;
         
         vec3 colors[5] = vec3[5](
             blendTextureSample(vec2(0.1, 0.1)),
