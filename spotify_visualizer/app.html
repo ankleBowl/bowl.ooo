@@ -91,7 +91,10 @@
         }   
 
         #now-playing-info > div {
+            position: absolute;
             margin-top: 3vw;
+            left: 0;
+            right: 0;
         }
 
         #progress-bar-container {
@@ -125,13 +128,18 @@
             background-color: white;
             border-radius: 3px;
         }
+
+
         
         #song-info {
             margin-top: 8px;
             display: flex;
             flex-direction: column;
             align-items: center;
+
+            position: relative;
         }
+
 
         p {
             color: rgba(255, 255, 255, 0.4);
@@ -145,13 +153,11 @@
             color: white;
             font-weight: bold;
             font-size: 1.2em;
+            transition: opacity 0.15s ease-out;
         }
 
         #metadata {
-            /* white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 50%; */
+            transition: opacity 0.15s ease-out;
         }
 
 
@@ -233,6 +239,49 @@
             }
         }
 
+        #playback-controls {
+            position: absolute;
+
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 30px;
+
+            transition: opacity 0.15s ease-out;
+        }
+
+        #playback-controls > div {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0px;
+        }
+
+        #playback-controls button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            
+            border-radius: 10px;
+            border: none;
+            background: none;
+
+
+            height: 40px;
+            aspect-ratio: 1;
+            
+            opacity: 0.4;
+        }
+        
+        #playback-controls button:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
     </style>
 </head>
 <body onload="start()">
@@ -249,7 +298,7 @@
         <div id="now-playing-view">
             <img id="album-art" crossorigin="anonymous">
             <div id="now-playing-info">
-                <div>
+                <div class="song-info">
                     <div id="progress-bar-container">
                         <div id="progress-times">
                             <p>0:01</p>
@@ -262,6 +311,19 @@
                     <div id="song-info">
                         <p id="title" class="highlighted">Gurenge</p>
                         <p id="metadata">LiSA — Gurenge - EP</p>
+                        <div id="playback-controls">
+                            <div>
+                                <!-- <button></button> -->
+                            </div>
+                            <div>
+                                <button onclick="skipToPrevious()"><img src="skip.svg"></button>
+                                <button onclick="togglePlayback()"><img src="pause.svg"></button>
+                                <button onclick="skipToNext()" style="transform: scaleX(-100%)"><img src="skip.svg"></button>
+                            </div>
+                            <div>
+                                <!-- <button></button> -->
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -277,7 +339,7 @@
     const clientId = '13a58573df5945fb9bf1bd8f8401d47b';
     const redirectUri = window.location.origin + window.location.pathname;
     console.log(redirectUri);
-    const scope = 'user-read-playback-state user-library-read';
+    const scope = 'user-read-playback-state user-library-read user-modify-playback-state';
 
     const generateRandomString = (length) => {
         const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -405,7 +467,10 @@
         }
         for (let i = fadeOutStartFrom; i < lyricsView.children.length; i++) {
             let lyric = lyricsView.children[i];
-            lyric.style.animation = `fadeOut 0.5s ease-in-out ${(i - fadeOutStartFrom) * 0.1}s forwards`;
+            if (lyric.style.opacity != 0) {
+                lyric.style.animation = `fadeOut 0.5s ease-in-out ${(i - fadeOutStartFrom) * 0.1}s forwards`;
+            }
+
         }
     }
 
@@ -419,6 +484,7 @@
         for (let i = 0; i < lyricLines.length; i++) {
             // check if line contains ♪
             var elem;
+            let isDots = false
             if (lyricLines[i].text.includes("♪")) {
                 elem = document.createElement("div");
                 elem.classList.add("song-pause");
@@ -427,7 +493,7 @@
                     let subElem = document.createElement("div");
                     elem.appendChild(subElem);
                 }
-
+                isDots = true;
             } else {
                 elem = document.createElement("p");
                 elem.innerText = lyricLines[i].text;
@@ -437,11 +503,16 @@
             elem.style.transform = "translateY(-50%)";
             lyricsView.appendChild(elem);
             lineHeight = elem.getBoundingClientRect().height / 59;
-            currentTop += (lineHeight - 1) * 25
+            if (!isDots) {
+                currentTop += (lineHeight - 1) * 25
+            }
             elem.style.top = `calc(50% + ${currentTop}px)`;
             elem.setAttribute("data-top", currentTop);
-            currentTop += (lineHeight - 1) * 25
-            currentTop += 100;
+            if (!isDots) {
+                currentTop += (lineHeight - 1) * 25
+                currentTop += 100;
+            }
+
         }
 
         setTimeout(() => {
@@ -457,12 +528,12 @@
         let focusedLyric = lyricsView.children[index];
         let top = parseInt(focusedLyric.getAttribute("data-top"));
         
-        let j = 0
+        let hideNext = false;
         for (let i = 0; i < lyricsView.children.length; i++) {
             let lyric = lyricsView.children[i];
             let newTop = parseInt(lyric.getAttribute("data-top")) - top;
             lyric.setAttribute("data-top", newTop);
-            // change transition duration based on distance from index
+
             let transitionDuration = (Math.abs(i - index) * 0.1) + 0.3;
             if (transitionDuration < 1) {
                 lyric.style.transition = `top ${transitionDuration}s cubic-bezier(0.13, -0.003, 0, 1.006), opacity 0.3s ease-out, color 0.3s ease-out`;
@@ -470,7 +541,8 @@
                 lyric.style.transition = `opacity 0.3s ease-out, color 0.3s ease-out`;
             }
             lyric.style.top = `calc(50% + ${newTop}px)`;
-            if (newTop < 0) {
+            if (newTop < 0 || hideNext) {
+                hideNext = false;
                 lyric.style.opacity = 0;
             } else {
                 lyric.style.opacity = 1;
@@ -480,6 +552,14 @@
             } else {
                 lyric.style.color = "rgba(255, 255, 255, 0.4)";
             }
+
+            if (lyric.tagName == "DIV" && i != index) {
+                lyric.style.opacity = 0;
+            } else if (lyric.tagName == "DIV" && i == index) {
+                lyric.style.opacity = 1;
+                hideNext = true;
+            }
+
         }
 
     }
@@ -718,6 +798,39 @@
         return response;
     }
 
+    async function togglePlayback() {
+        const token = localStorage.getItem('access_token');
+        
+        const stateRes = await fetch('https://api.spotify.com/v1/me/player', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const state = await stateRes.json();
+        const endpoint = state.is_playing ? 
+            'https://api.spotify.com/v1/me/player/pause' : 
+            'https://api.spotify.com/v1/me/player/play';
+        await fetch(endpoint, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return !state.is_playing;
+    }
+
+    async function skipToNext() {
+        const token = localStorage.getItem('access_token');
+        await fetch('https://api.spotify.com/v1/me/player/next', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+    }
+
+    async function skipToPrevious() {
+        const token = localStorage.getItem('access_token');
+        await fetch('https://api.spotify.com/v1/me/player/previous', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+    }
+
     connect()
 </script>
 <script type="text/javascript">
@@ -897,6 +1010,33 @@
     }
 
     window.onresize = fixSize;
+
+    let lastMouseMove = 0;
+    window.onmousemove = function (event) {
+        lastMouseMove = Date.now();
+        let metadata = document.getElementById("metadata");
+        let title = document.getElementById("title");
+        let playbackControls = document.getElementById("playback-controls");
+        metadata.style.opacity = 0;
+        title.style.opacity = 0;
+        playbackControls.style.opacity = 1;
+        setTimeout(() => {
+            checkRestoreMetadata()
+        }, 3001);
+    }
+
+    function checkRestoreMetadata() {
+        let metadata = document.getElementById("metadata");
+        let title = document.getElementById("title");
+        let playbackControls = document.getElementById("playback-controls");
+        if (Date.now() - lastMouseMove < 3000) {
+            return
+        }
+        metadata.style.opacity = 1;
+        title.style.opacity = 1;
+        playbackControls.style.opacity = 0;
+
+    }
 </script>
 <script>
     const threshold = 0;
@@ -1075,15 +1215,19 @@
         return nf*nf*nf*nf;
     }
 
+    float normalizedSine(float t) {
+        return (sin(t) + 1.) / 2.;
+    }
+
 
 
 
     float curveEquation(float uv_y) {
-        float sinWave = -sin(uv_y * 5.) / 3.;
-        float linear = sin(u_time) * (uv_y * 5.) / 3.;
+        float sinWave = -sin(uv_y * (normalizedSine(u_time) + 0.5) * 4.) / 3.;
+        float linear = sin(uv_y * (normalizedSine(u_time) + 0.5) * 4.) / 3.;
     
         float blendAmount = (sin(u_time * 1.4) + 1.) / 2.;
-    
+        // float blendAmount = 1.;
         sinWave = sinWave * blendAmount + (linear * (1. - blendAmount));
     
         sinWave += cos(uv.x * 4.35 + u_time) * 0.1;
@@ -1112,15 +1256,12 @@
     vec3 blendTextureSample(vec2 uv) {
         return mix(texture(u_texture_one, uv).rgb, texture(u_texture_two, uv).rgb, 1. - blend_amount);
     }
-
-    float normalizedSine(float t) {
-        return (sin(t) + 1.) / 2.;
-    }
     
     void main(){
         vec2 sample_point = vec2(uv.x - 0.5, uv.y - 0.5);
         // float power = ((sin(u_time + (uv.y * 5.)) + 1.) / 2.) + 0.7;
-        float power = normalizedSine(u_time + (uv.y * 5.)) * 3. + 0.3;
+        float power = normalizedSine(u_time + (uv.y * 5.)) * 1. + 0.3;
+        // float power = 0.1;
         float val = (sample_point.x - curveEquation(sample_point.y));
 
         float isNeg = sign(val);
@@ -1153,12 +1294,19 @@
         col += u_time * 0.5;
         col += pNoise(uv * 10., 5) * 0.05;
         
+        //vec3 colors[5] = vec3[5](
+        //    blendTextureSample(vec2(0.1, 0.1)),
+        //    blendTextureSample(vec2(0.3, 0.3)),
+        //    blendTextureSample(vec2(0.5, 0.5)),
+        //    blendTextureSample(vec2(0.7, 0.7)),
+        //    blendTextureSample(vec2(0.9, 0.9))
+        //);
         vec3 colors[5] = vec3[5](
-            blendTextureSample(vec2(0.1, 0.1)),
-            blendTextureSample(vec2(0.3, 0.3)),
-            blendTextureSample(vec2(0.5, 0.5)),
-            blendTextureSample(vec2(0.7, 0.7)),
-            blendTextureSample(vec2(0.9, 0.9))
+            blendTextureSample(vec2(0.5 + 0.4 * cos(u_time + 0.0 * 6.28), 0.5 + 0.4 * sin(u_time + 0.0 * 6.28))),
+            blendTextureSample(vec2(0.5 + 0.4 * cos(u_time + 0.2 * 6.28), 0.5 + 0.4 * sin(u_time + 0.2 * 6.28))),
+            blendTextureSample(vec2(0.5 + 0.4 * cos(u_time + 0.4 * 6.28), 0.5 + 0.4 * sin(u_time + 0.4 * 6.28))),
+            blendTextureSample(vec2(0.5 + 0.4 * cos(u_time + 0.6 * 6.28), 0.5 + 0.4 * sin(u_time + 0.6 * 6.28))),
+            blendTextureSample(vec2(0.5 + 0.4 * cos(u_time + 0.8 * 6.28), 0.5 + 0.4 * sin(u_time + 0.8 * 6.28)))
         );
         out_color = vec4(colorRamp(col, colors), 1);
     
