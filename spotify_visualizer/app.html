@@ -74,13 +74,30 @@
             transition: max-width 0.25s ease-out;
         }
 
-        #album-art {
+        #album-art-container {
             width: 100%;
             aspect-ratio: 1;
-            background-color: purple;
-            border-radius: 10px;
 
+            position: relative;
             box-shadow: 0 0 40px 0px rgba(0, 0, 0, 0.15);
+
+            border-radius: 10px;
+            overflow: hidden;
+            
+        }
+
+        #album-art-container > img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+
+            width: 100%;
+
+            background-color: red;
+
+            transition: opacity 0.5s ease-out;
         }
 
         #now-playing-info {
@@ -145,7 +162,7 @@
             color: rgba(255, 255, 255, 0.4);
             margin: 0;
 
-            font-size: 1.2em;
+            font-size: 1.3em;
 
         }
 
@@ -159,7 +176,6 @@
         #metadata {
             transition: opacity 0.15s ease-out;
         }
-
 
 
         /* FOR WHEN LYRICS ARE VISIBLE */
@@ -187,21 +203,29 @@
 
         #lyrics-view > p {
             /* font-size: 3.1em; */
-            font-size: calc(1.1em + 1.5vw);
+            font-size: calc(1.2em + 1.5vw);
 
             position: absolute;
 
             right: 6%;
-            left: 6%;
+            left: 8%;
 
             font-weight: bold;
 
             transition: top 0.2s ease-in-out, opacity 0.2s ease-out, color 0.2s ease-out;
+
+            cursor: pointer;
+            
         }
+
+        #lyrics-view > p:hover {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+
         #lyrics-view > * {
             position: absolute;
-            right: 6%;
-            left: 6%;
+            right: 8%;
+            left: 8%;
             transition: top 0.2s ease-in-out, opacity 0.2s ease-out, color 0.2s ease-out;
         }
 
@@ -287,7 +311,7 @@
 <body onload="start()">
     
     <!-- <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vw; z-index: 1; opacity: 0.5; display: flex; justify-content: center;">
-        <img src="/161lyrics.png" style="height: 100vh;">
+        <img src="/169lyrics.png" style="height: 100vh;">
     </div> -->
 
     <div id="canvasContainer">
@@ -296,7 +320,11 @@
 
     <div id="main-container">
         <div id="now-playing-view">
-            <img id="album-art" crossorigin="anonymous">
+            <div id="album-art-container">
+                <img id="album-art-one" crossorigin="anonymous">
+                <img id="album-art-two" crossorigin="anonymous">
+            </div>
+            
             <div id="now-playing-info">
                 <div class="song-info">
                     <div id="progress-bar-container">
@@ -421,10 +449,22 @@
     
 </script>
 <script>
+    let lyricsEnabled = true;
+
+    function toggleLyrics() {
+        lyricsEnabled = !lyricsEnabled;
+        if (lyricsEnabled) {
+            showLyrics();
+        } else {
+            hideLyrics();
+        }
+    }
+
     let currentLyricIndex = 0;
     let prevAlbumArtUrl = null;
     let prevSongId = null;
     let activeTexture = "u_texture_one";
+    let activeAlbumArtId = "album-art-one";
     async function updateView() {
         // console.log('Updating view...');
         let currentlyPlaying = await getCurrentlyPlaying();
@@ -474,6 +514,7 @@
         }
     }
 
+
     function fillInLyrics(lyricLines) {
         let lyricsView = document.getElementById("lyrics-view");
         lyricsView.innerHTML = "";
@@ -481,38 +522,71 @@
         let currentTop = 0;
         currentLyricIndex = 0;
 
+        let dotsHeight = -1
+
         for (let i = 0; i < lyricLines.length; i++) {
             // check if line contains ♪
             var elem;
-            let isDots = false
-            if (lyricLines[i].text.includes("♪")) {
+            let isDots = lyricLines[i].text.includes("♪")
+            let nextIsDots = (i < lyricLines.length - 1) && lyricLines[i + 1].text.includes("♪");
+            if (isDots) {
                 elem = document.createElement("div");
+                elem.setAttribute("line-type", "dots");
                 elem.classList.add("song-pause");
 
                 for (let j = 0; j < 3; j++) {
                     let subElem = document.createElement("div");
                     elem.appendChild(subElem);
                 }
-                isDots = true;
             } else {
                 elem = document.createElement("p");
+                elem.setAttribute("line-type", "lyric");
                 elem.innerText = lyricLines[i].text;
+                elem.addEventListener("click", () => {
+                    
+                    lastLastRecognizedPlaytime = lyricLines[i].time * 1000;
+                    lastRecognizedPlaytime = lyricLines[i].time * 1000;
+
+                    lastManualPlaytimeChange = Date.now();
+                    
+                    skipToPosition(lyricLines[i].time * 1000);
+
+                    scrollOffset = 0;
+                    scrollLyrics(lyricLines[i].time);
+                });
             }
 
             elem.setAttribute("data-start", lyricLines[i].time);
-            elem.style.transform = "translateY(-50%)";
             lyricsView.appendChild(elem);
-            lineHeight = elem.getBoundingClientRect().height / 59;
-            if (!isDots) {
-                currentTop += (lineHeight - 1) * 25
-            }
-            elem.style.top = `calc(50% + ${currentTop}px)`;
-            elem.setAttribute("data-top", currentTop);
-            if (!isDots) {
-                currentTop += (lineHeight - 1) * 25
-                currentTop += 100;
-            }
 
+            lineHeight = elem.getBoundingClientRect().height;
+
+            LYRICS_PADDING = 40;
+
+            if (!isDots) {
+                elem.style.top = `${currentTop}px`;
+                elem.setAttribute("data-top", currentTop);
+                if (!nextIsDots) {
+                    currentTop += lineHeight + LYRICS_PADDING
+                } else {
+                    dotsHeight = lineHeight;
+                }
+            } else {
+                if (dotsHeight == -1) {
+                    elem.style.top = `${currentTop}px`;
+                    elem.setAttribute("data-top", currentTop);
+                    currentTop += lineHeight + LYRICS_PADDING;
+                } else {
+                    let currentDotElemHeight = elem.getBoundingClientRect().height;
+                    let topOffset = (dotsHeight - currentDotElemHeight)
+
+                    console.log(dotsHeight, currentDotElemHeight, topOffset);
+
+                    elem.style.top = `${currentTop + topOffset}px`;
+                    elem.setAttribute("data-top", currentTop + topOffset);
+                    currentTop += dotsHeight + 50;
+                }
+            }
         }
 
         setTimeout(() => {
@@ -520,48 +594,157 @@
         }, 100);
     }
 
-    function scrollToLyric(index) {
+    let scrollOffset = 0;
+    let lastScroll = -1;
+
+    document.getElementById("lyrics-view").addEventListener("wheel", (e) => {
+        e.preventDefault();
+        scrollOffset -= e.deltaY;
+        lastScroll = Date.now();
+
         let lyricsView = document.getElementById("lyrics-view");
+        let lyricsHeight = lyricsView.children[lyricsView.children.length - 1].getAttribute("data-top");
+        let halfHeight = lyricsView.getBoundingClientRect().height / 2;
+        if (scrollOffset > heightOffset + halfHeight) {
+            scrollOffset = heightOffset + halfHeight;
+        }
+        if (scrollOffset <= -lyricsHeight + heightOffset + halfHeight) {
+            scrollOffset = -lyricsHeight + heightOffset + halfHeight;
+        }
+        scrollLyrics(estimateCurrentTime());
+    });
+
+    let prevTargetLyricIndex = -1;
+    let prevHeightOffset = 0;
+    let heightOffset;
+
+    function scrollLyrics(time) {
+        let lyricsView = document.getElementById("lyrics-view");
+
         if (lyricsView.children.length == 0) {
             return;
         }
-        let focusedLyric = lyricsView.children[index];
-        let top = parseInt(focusedLyric.getAttribute("data-top"));
-        
-        let hideNext = false;
-        for (let i = 0; i < lyricsView.children.length; i++) {
-            let lyric = lyricsView.children[i];
-            let newTop = parseInt(lyric.getAttribute("data-top")) - top;
-            lyric.setAttribute("data-top", newTop);
 
-            let transitionDuration = (Math.abs(i - index) * 0.1) + 0.3;
-            if (transitionDuration < 1) {
-                lyric.style.transition = `top ${transitionDuration}s cubic-bezier(0.13, -0.003, 0, 1.006), opacity 0.3s ease-out, color 0.3s ease-out`;
-            } else {
-                lyric.style.transition = `opacity 0.3s ease-out, color 0.3s ease-out`;
-            }
-            lyric.style.top = `calc(50% + ${newTop}px)`;
-            if (newTop < 0 || hideNext) {
-                hideNext = false;
-                lyric.style.opacity = 0;
-            } else {
-                lyric.style.opacity = 1;
-            }
-            if (lyric == focusedLyric) {
-                lyric.style.color = "white";
-            } else {
-                lyric.style.color = "rgba(255, 255, 255, 0.4)";
-            }
-
-            if (lyric.tagName == "DIV" && i != index) {
-                lyric.style.opacity = 0;
-            } else if (lyric.tagName == "DIV" && i == index) {
-                lyric.style.opacity = 1;
-                hideNext = true;
-            }
-
+        if (Date.now() - lastScroll > 5000) {
+            scrollOffset = 0;
+            lastScroll = -1;
         }
 
+        // Find the relevant lyric given the time
+        let targetLyricIndex = -1;
+        let targetLyric;
+        
+        for (let i = 0; i < lyricsView.children.length; i++) {
+            let lyric = lyricsView.children[i];
+            let startTime = parseFloat(lyric.getAttribute("data-start"));
+            if (startTime > time) {
+                targetLyricIndex = i - 1;
+                targetLyric = lyricsView.children[targetLyricIndex];
+
+                let heightDifference = heightOffset - prevHeightOffset;
+                prevHeightOffset = heightOffset;
+                if (scrollOffset != 0) {
+                    scrollOffset += heightDifference;
+                }
+                
+                break;
+            } else {
+                // offset scroll by the height of this lyric
+                heightOffset = parseInt(lyric.getAttribute("data-top"));
+                heightOffset -= lyricsView.getBoundingClientRect().height / 2;
+                
+                // console.log(time)
+                // console.log(heightOffset, prevHeightOffset);
+                // scrollOffset += (heightOffset - prevHeightOffset);
+            }
+        }
+
+        heightOffset += targetLyric.getBoundingClientRect().height / 2;
+
+        prevTargetLyricIndex = targetLyricIndex;
+
+        // Set custom transition durations based on distance from target lyric (creates the Apple Music springy effect)
+        for (let i = 0; i < lyricsView.children.length; i++) {
+            let lyric = lyricsView.children[i];
+            let transitionDuration = (Math.abs(i - targetLyricIndex) * 0.1) + 0.3;
+            if (scrollOffset == 0) {
+                transitionDuration = Math.min(transitionDuration, 0.8);
+                lyric.style.transition = `top ${transitionDuration}s cubic-bezier(0.13, -0.003, 0, 1.006), opacity 0.3s ease-out, color 0.3s ease-out`;
+            } else {
+                lyric.style.transition = `opacity 0.1s linear, color 0.1s linear, top 0.1s linear`;
+            }
+            
+        }
+
+        // Shift all lyrics up or down based on the target lyric
+        for (let i = 0; i < lyricsView.children.length; i++) {
+            let lyric = lyricsView.children[i];
+            let newTop = parseInt(lyric.getAttribute("data-top")) - heightOffset + scrollOffset;
+
+            if (targetLyric.getAttribute("line-type") == "dots" && i == targetLyricIndex - 1) {
+                newTop -= lyric.getBoundingClientRect().height;
+            }
+            lyric.style.top = `${newTop}px`;
+        }
+        
+
+        // Highlight only the target lyric
+        for (let i = 0; i < lyricsView.children.length; i++) {
+            let lyric = lyricsView.children[i];
+            if (i == targetLyricIndex) {
+                lyric.style.color = "white";
+                lyric.style.opacity = 1;
+            } else if (i > targetLyricIndex) {
+                lyric.style.color = "rgba(255, 255, 255, 0.4)";
+                lyric.style.opacity = 1;
+            } else {    
+                if (scrollOffset == 0) {
+                    lyric.style.opacity = 0;
+                } else {
+                    lyric.style.opacity = 1;
+                    lyric.style.color = "rgba(255, 255, 255, 0.4)";
+                }
+                
+            }
+
+            if (i != targetLyricIndex && lyric.tagName == "DIV") {
+                lyric.style.opacity = 0;
+            }
+        }
+
+        // If the current lyric is a dots line, update it's progress
+        if (targetLyric && targetLyric.getAttribute("line-type") == "dots") {
+            let nextLyric = lyricsView.children[targetLyricIndex + 1];
+
+            // Update the dots progress
+            if (nextLyric) {
+                let nextLyricStart = parseFloat(nextLyric.getAttribute("data-start"));
+                let thisLyricStart =  parseFloat(targetLyric.getAttribute("data-start"));
+                let timeUntilNextLyric = nextLyricStart - time;
+                let totalLyricTime = nextLyricStart - thisLyricStart;
+
+                let percentageComplete = 1 - (timeUntilNextLyric / totalLyricTime);
+                
+                // console.log(percentageComplete);
+
+                let dotIndex = Math.floor(percentageComplete * 3);
+                let dotCompletion = percentageComplete * 3 - dotIndex;
+
+                // console.log(dotIndex, dotCompletion);
+
+                for (let i = 0; i < 3; i++) {
+                    let dot = targetLyric.children[i];
+                    if (i == dotIndex) {
+                        dotCompletion = dotCompletion * 0.6 + 0.4;
+                        dot.style.backgroundColor = "rgba(255, 255, 255, " + dotCompletion + ")";
+                    } else if (i > dotIndex) {
+                        dot.style.backgroundColor = "rgba(255, 255, 255, 0.4)";
+                    } else {
+                        dot.style.backgroundColor = "rgba(255, 255, 255, 1)";
+                    }
+                }
+            }
+        }
     }
 
     function hideLyrics() {
@@ -574,50 +757,47 @@
         mainContainer.classList.add("lyrics-visible");
     }
 
-    // fillInLyrics([
-    //     "Right here, right now",
-    //     "I put the offer out",
-    //     "I don't want to chase you down",
-    //     "I know you see it",
-    //     // "You run with me",
-    //     // "And I can cut you free",
-    //     // "Out of the drudgery",
-    //     // "And walls you keep in",
-    //     // "So trade that typical",
-    //     // "For something colorful",
-    //     // "And if it's crazy, live a little crazy",
-    //     // "You can play it sensible",
-    //     // "A king of conventional",
-    //     // "Or you can risk it all and see",
-    //     // "Don't you wanna get away from the same old part you gotta play",
-    //     // "'Cause I got what you need",
-    //     // "So come with me and take the ride",
-    //     // "It'll take you to the other side",
-    //     // "Cause you can do like you do",
-    //     // "Or you can do like me",
-    //     // "Stay in the cage, or you'll finally take the key",
-    //     // "Oh, damn! Suddenly you're free to fly",
-    //     // "It'll take you to the other side",
-    //     // "Okay, my friend, you want to cut me in",
-    //     // "Well, I hate to tell you, but it just won't happen",
-    //     // "So thanks, but no",
-    //     // "I think I'm good to go",
-    //     // "Cause I quite enjoy the life you say I'm trapped in",
-    // ]);
-
     let SPOTIFY_POLL_RATE = 1000
 
     let lastRecognizedPlaytime = -1;
     let lastLastRecognizedPlaytime = -1;
+    let lastManualPlaytimeChange = -1;
+
     let lastTimeUpdated = -1;
     let waitingOnLyrics = false;
-    function playSong(song_id, title, album, artist, current_time, total_time, album_art_src) {
-        document.getElementById("title").innerText = title;
-        if (artist == null || album == null) {
-            document.getElementById("metadata").innerText = "";
-        } else {
-            document.getElementById("metadata").innerText = `${artist} — ${album}`;
+
+    let targetTitle = ""
+    let targetMetadata = ""
+
+    function stepInputTowardTarget(element, target) {
+        let current = element.textContent;
+        if (current == target) {
+            return;
         }
+        if (target.startsWith(current)) {
+            element.innerText = target.substring(0, current.length + 1);
+        } else {
+            element.textContent = current.substring(0, current.length - 1);
+        }
+    }
+
+    setInterval(() => {
+        let titleElement = document.getElementById("title");
+        let metadataElement = document.getElementById("metadata");
+
+        stepInputTowardTarget(titleElement, targetTitle);
+        stepInputTowardTarget(metadataElement, targetMetadata);
+    }, 50);
+
+    function playSong(song_id, title, album, artist, current_time, total_time, album_art_src) {
+        targetTitle = title;
+        targetMetadata = (artist == null || album == null) ? "" : `${artist} — ${album}`;
+        // document.getElementById("title").innerText = title;
+        // if (artist == null || album == null) {
+        //     document.getElementById("metadata").innerText = "";
+        // } else {
+        //     document.getElementById("metadata").innerText = `${artist} — ${album}`;
+        // }
         
         if (current_time == null || total_time == null) {
             document.getElementById("progress-times").children[0].innerText = "--:--";
@@ -643,11 +823,21 @@
         }
         
         if (album_art_src) {
-            document.getElementById("album-art").src = album_art_src;
+            // document.getElementById("album-art").src = album_art_src;
+            document.getElementById(activeAlbumArtId).src = album_art_src;
+            if (activeAlbumArtId == "album-art-one") {
+                document.getElementById("album-art-two").style.opacity = 0;
+                document.getElementById("album-art-one").style.opacity = 1;
+            } else {
+                document.getElementById("album-art-one").style.opacity = 0;
+                document.getElementById("album-art-two").style.opacity = 1;
+            }
+
             initTextures(album_art_src);
         }
 
         if (song_id != prevSongId) {
+            scrollOffset = 0;
             let lyricsView = document.getElementById("lyrics-view"); 
             waitingOnLyrics = true;
             fadeOutLyrics(lyricsView.children);
@@ -656,11 +846,27 @@
             if (song_id == null) {
                 return;
             }
+
             console.log("Requesting lyrics for", title, "by", artist);
+            title = encodeURIComponent(title);
+            artist = encodeURIComponent(artist);
+
+            // remove / from title and artist
+            title = title.replace(/\//g, " ");
+            artist = artist.replace(/\//g, " ");
+            
             fetch(`https://ytm.nwvbug.com/request-lyrics/${title} [By] ${artist}`).then(text => {
-                console.log(text)
+                if (text.status >= 500) {
+                    return "no_lyrics_found"
+                }
                 return text.text()
+
+                // the server is down so I will use cached data
+                // return `{"lrc":[{"text":"\u266a","time":0.0},{"text":"She was a stoner","time":6.68},{"text":"And I'm a good boy","time":8.46},{"text":"A loner, but she's a socialite","time":11.33},{"text":"From Minnesota","time":15.17},{"text":"Sipping on rum and soda","time":16.47},{"text":"So sweet like Coca\u2014Cola","time":18.35},{"text":"Oh, my","time":19.96},{"text":"And I don't know what she sees in me","time":22.16},{"text":"We're opposites in ecstasy","time":25.85},{"text":"So call me dumb or just lucky","time":29.46},{"text":"But I forget to breathe, uh","time":32.82},{"text":"I feel like I could die right here","time":35.79},{"text":"Kiss you on the neck, and shed a single tear","time":38.73},{"text":"No one would notice if we disappeared","time":42.25},{"text":"Romantic, hopeless","time":45.94},{"text":"I could die right here","time":47.78},{"text":"Ah\u2014ah\u2014ah\u2014ah\u2014ooh (ooh, ooh, die, I could die right here)","time":49.33},{"text":"Ah\u2014ah\u2014ah\u2014ooh (ooh, ooh, die, I could die right here)","time":53.32},{"text":"Ah\u2014ah\u2014ah\u2014ooh (ooh, ooh, die, I could die right here)","time":57.95},{"text":"Ah\u2014ah\u2014ah\u2014ooh (ooh, ooh, die, I could die right here)","time":61.7},{"text":"I could die right here","time":64.08},{"text":"She looks like fireworks (fireworks)","time":65.97},{"text":"Against a red sky","time":68.62},{"text":"No words (no words)","time":70.53},{"text":"Could ever do her justice","time":72.42},{"text":"My favorite color is her","time":74.22},{"text":"Skin in the summer like gold","time":75.99},{"text":"And cocoa butter","time":77.81},{"text":"Oh, my (oh, my)","time":79.04},{"text":"And I don't know what she sees in me","time":81.17},{"text":"We're opposites in ecstasy (oh, yeah)","time":84.85},{"text":"So call me dumb or just lucky","time":88.52},{"text":"But I forget to breathe, uh","time":92.32},{"text":"I feel like I could die right here","time":95.08},{"text":"Kiss you on the neck, and shed a single tear","time":97.99},{"text":"No one would notice if we disappeared","time":101.1},{"text":"Romantic, hopeless","time":105.13},{"text":"I could die right here","time":106.76},{"text":"(Ah\u2014ah\u2014ah\u2014ah\u2014ooh)","time":108.16},{"text":"I feel like I could die right here, die right here","time":109.7},{"text":"(Ooh) like I could die right here, die right here","time":113.33},{"text":"(Ooh) I'll shed a single tear and disappear, 'cause I could","time":117.18},{"text":"I could die right here","time":123.48}],"source":"ytm"}`
             }).then(text => {
+                console.log(text)
+            // setTimeout(() => {
+            //     text = `{"lrc":[{"text":"\u266a","time":0.0},{"text":"She was a stoner","time":6.68},{"text":"And I'm a good boy","time":8.46},{"text":"A loner, but she's a socialite","time":11.33},{"text":"From Minnesota","time":15.17},{"text":"\u266a","time":16.47},{"text":"So sweet like Coca\u2014Cola","time":18.35},{"text":"Oh, my","time":19.96},{"text":"And I don't know what she sees in me","time":22.16},{"text":"We're opposites in ecstasy","time":25.85},{"text":"So call me dumb or just lucky","time":29.46},{"text":"But I forget to breathe, uh","time":32.82},{"text":"I feel like I could die right here","time":35.79},{"text":"Kiss you on the neck, and shed a single tear","time":38.73},{"text":"No one would notice if we disappeared","time":42.25},{"text":"Romantic, hopeless","time":45.94},{"text":"I could die right here","time":47.78},{"text":"Ah\u2014ah\u2014ah\u2014ah\u2014ooh (ooh, ooh, die, I could die right here)","time":49.33},{"text":"Ah\u2014ah\u2014ah\u2014ooh (ooh, ooh, die, I could die right here)","time":53.32},{"text":"Ah\u2014ah\u2014ah\u2014ooh (ooh, ooh, die, I could die right here)","time":57.95},{"text":"Ah\u2014ah\u2014ah\u2014ooh (ooh, ooh, die, I could die right here)","time":61.7},{"text":"I could die right here","time":64.08},{"text":"She looks like fireworks (fireworks)","time":65.97},{"text":"Against a red sky","time":68.62},{"text":"No words (no words)","time":70.53},{"text":"Could ever do her justice","time":72.42},{"text":"My favorite color is her","time":74.22},{"text":"Skin in the summer like gold","time":75.99},{"text":"And cocoa butter","time":77.81},{"text":"Oh, my (oh, my)","time":79.04},{"text":"And I don't know what she sees in me","time":81.17},{"text":"We're opposites in ecstasy (oh, yeah)","time":84.85},{"text":"So call me dumb or just lucky","time":88.52},{"text":"But I forget to breathe, uh","time":92.32},{"text":"I feel like I could die right here","time":95.08},{"text":"Kiss you on the neck, and shed a single tear","time":97.99},{"text":"No one would notice if we disappeared","time":101.1},{"text":"Romantic, hopeless","time":105.13},{"text":"I could die right here","time":106.76},{"text":"(Ah\u2014ah\u2014ah\u2014ah\u2014ooh)","time":108.16},{"text":"I feel like I could die right here, die right here","time":109.7},{"text":"(Ooh) like I could die right here, die right here","time":113.33},{"text":"(Ooh) I'll shed a single tear and disappear, 'cause I could","time":117.18},{"text":"I could die right here","time":123.48}],"source":"ytm"}`
                 if (text == "no_lyrics_found") {
                     waitingOnLyrics = false;
                     hideLyrics();
@@ -674,29 +880,39 @@
                     hideLyrics();
                     return;
                 }
-                console.log("Lyrics found")
-                showLyrics();
+                if (lyricsEnabled) {
+                    showLyrics();
+                }
                 setTimeout(() => {
                     fillInLyrics(result.lrc)
                     waitingOnLyrics = false;
-                }, 250);
+                }, 500);
             });
         }
-
+        if (Date.now() - lastManualPlaytimeChange < 1000) {
+            return
+        }
         lastLastRecognizedPlaytime = lastRecognizedPlaytime;
         lastRecognizedPlaytime = current_time;
         lastTimeUpdated = Date.now();
     }
 
+    function estimateCurrentTime() {
+        let estimatedCurrentTime = lastRecognizedPlaytime / 1000
+        if (lastRecognizedPlaytime != lastLastRecognizedPlaytime) {
+            estimatedCurrentTime += (Date.now() - lastTimeUpdated) / 1000;
+        }
+        return estimatedCurrentTime;
+    }
 
     function updateLyrics() {
         if (waitingOnLyrics) {
             return;
         }
-        let estimatedCurrentTime = lastRecognizedPlaytime / 1000
-        if (lastRecognizedPlaytime != lastLastRecognizedPlaytime) {
-            estimatedCurrentTime += (Date.now() - lastTimeUpdated) / 1000;
-        }
+        scrollLyrics(estimateCurrentTime());
+        return;
+
+
         let lyricsView = document.getElementById("lyrics-view");
         let nextLyric = lyricsView.children[currentLyricIndex + 1];
         if (nextLyric) {
@@ -755,7 +971,8 @@
 
     setInterval(() => {
         updateLyrics();
-    }, 250);
+    }, 50);
+
 
     async function getCurrentlyPlaying() {
         const token = localStorage.getItem('access_token'); // Retrieve the access token from localStorage
@@ -813,6 +1030,14 @@
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return !state.is_playing;
+    }
+
+    async function skipToPosition(positionMs) {
+        const token = localStorage.getItem('access_token');
+        await fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${positionMs}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
     }
 
     async function skipToNext() {
@@ -901,8 +1126,10 @@
     function initTextures(album_art_src) {
         if (activeTexture == "u_texture_one") {
             activeTexture = "u_texture_two";
+            activeAlbumArtId = "album-art-two";
         } else {
             activeTexture = "u_texture_one";
+            activeAlbumArtId = "album-art-one";
         }
 
         console.log("Loading texture: ", album_art_src);
