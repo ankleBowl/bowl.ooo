@@ -31,7 +31,7 @@
             top: -15%;
             right: -15%;
             bottom: -15%;
-    
+
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -61,7 +61,7 @@
 
         #now-playing-view {
             flex: 0.75;
-            
+
             display: flex;
             align-items: center;
             justify-content: center;
@@ -83,7 +83,7 @@
 
             border-radius: 10px;
             overflow: hidden;
-            
+
         }
 
         #album-art-container > img {
@@ -105,7 +105,7 @@
 
             width: 96%;
             height: 0;
-        }   
+        }
 
         #now-playing-info > div {
             position: absolute;
@@ -147,7 +147,7 @@
         }
 
 
-        
+
         #song-info {
             margin-top: 8px;
             display: flex;
@@ -215,7 +215,7 @@
             transition: top 0.2s ease-in-out, opacity 0.2s ease-out, color 0.2s ease-out;
 
             cursor: pointer;
-            
+
         }
 
         #lyrics-view > p:hover {
@@ -290,18 +290,22 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            
+
             border-radius: 10px;
             border: none;
             background: none;
 
-
             height: 40px;
             aspect-ratio: 1;
-            
+
             opacity: 0.4;
         }
-        
+
+        #playback-controls img {
+            height: 100%;
+            aspect-ratio: 1;
+        }
+
         #playback-controls button:hover {
             background-color: rgba(255, 255, 255, 0.1);
         }
@@ -309,7 +313,7 @@
     </style>
 </head>
 <body onload="start()">
-    
+
     <!-- <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vw; z-index: 1; opacity: 0.5; display: flex; justify-content: center;">
         <img src="/169lyrics.png" style="height: 100vh;">
     </div> -->
@@ -324,7 +328,7 @@
                 <img id="album-art-one" crossorigin="anonymous">
                 <img id="album-art-two" crossorigin="anonymous">
             </div>
-            
+
             <div id="now-playing-info">
                 <div class="song-info">
                     <div id="progress-bar-container">
@@ -385,7 +389,7 @@
             .replace(/\+/g, '-')
             .replace(/\//g, '_');
     }
-    
+
     const getToken = async code => {
         let codeVerifier = localStorage.getItem('code_verifier');
 
@@ -432,7 +436,7 @@
         authUrl.search = new URLSearchParams(params).toString();
         window.location.href = authUrl.toString();
     }
-    
+
     async function connect() {
         const urlParams = new URLSearchParams(window.location.search);
         let code = urlParams.get('code');
@@ -446,7 +450,7 @@
             signInToSpotify();
         }
     }
-    
+
 </script>
 <script>
     let lyricsEnabled = true;
@@ -477,7 +481,7 @@
                 currentPlaybackTime: null,
                 totalSongLength: null,
                 albumArtUrl: 'no_song.svg'
-            }   
+            }
         }
 
         if (currentlyPlaying.albumArtUrl == prevAlbumArtUrl) {
@@ -516,6 +520,7 @@
 
 
     function fillInLyrics(lyricLines) {
+        lyricLines.push({text: "", time: 1000})
         let lyricsView = document.getElementById("lyrics-view");
         lyricsView.innerHTML = "";
 
@@ -543,12 +548,11 @@
                 elem.setAttribute("line-type", "lyric");
                 elem.innerText = lyricLines[i].text;
                 elem.addEventListener("click", () => {
-                    
                     lastLastRecognizedPlaytime = lyricLines[i].time * 1000;
                     lastRecognizedPlaytime = lyricLines[i].time * 1000;
 
                     lastManualPlaytimeChange = Date.now();
-                    
+
                     skipToPosition(lyricLines[i].time * 1000);
 
                     scrollOffset = 0;
@@ -633,7 +637,7 @@
         // Find the relevant lyric given the time
         let targetLyricIndex = -1;
         let targetLyric;
-        
+
         for (let i = 0; i < lyricsView.children.length; i++) {
             let lyric = lyricsView.children[i];
             let startTime = parseFloat(lyric.getAttribute("data-start"));
@@ -646,19 +650,20 @@
                 if (scrollOffset != 0) {
                     scrollOffset += heightDifference;
                 }
-                
+
                 break;
             } else {
                 // offset scroll by the height of this lyric
                 heightOffset = parseInt(lyric.getAttribute("data-top"));
                 heightOffset -= lyricsView.getBoundingClientRect().height / 2;
-                
+
                 // console.log(time)
                 // console.log(heightOffset, prevHeightOffset);
                 // scrollOffset += (heightOffset - prevHeightOffset);
             }
         }
 
+        console.log(targetLyric)
         heightOffset += targetLyric.getBoundingClientRect().height / 2;
 
         prevTargetLyricIndex = targetLyricIndex;
@@ -673,7 +678,7 @@
             } else {
                 lyric.style.transition = `opacity 0.1s linear, color 0.1s linear, top 0.1s linear`;
             }
-            
+
         }
 
         // Shift all lyrics up or down based on the target lyric
@@ -686,7 +691,7 @@
             }
             lyric.style.top = `${newTop}px`;
         }
-        
+
 
         // Highlight only the target lyric
         for (let i = 0; i < lyricsView.children.length; i++) {
@@ -697,14 +702,14 @@
             } else if (i > targetLyricIndex) {
                 lyric.style.color = "rgba(255, 255, 255, 0.4)";
                 lyric.style.opacity = 1;
-            } else {    
+            } else {
                 if (scrollOffset == 0) {
                     lyric.style.opacity = 0;
                 } else {
                     lyric.style.opacity = 1;
                     lyric.style.color = "rgba(255, 255, 255, 0.4)";
                 }
-                
+
             }
 
             if (i != targetLyricIndex && lyric.tagName == "DIV") {
@@ -724,7 +729,7 @@
                 let totalLyricTime = nextLyricStart - thisLyricStart;
 
                 let percentageComplete = 1 - (timeUntilNextLyric / totalLyricTime);
-                
+
                 // console.log(percentageComplete);
 
                 let dotIndex = Math.floor(percentageComplete * 3);
@@ -798,7 +803,7 @@
         // } else {
         //     document.getElementById("metadata").innerText = `${artist} — ${album}`;
         // }
-        
+
         if (current_time == null || total_time == null) {
             document.getElementById("progress-times").children[0].innerText = "--:--";
             document.getElementById("progress-times").children[1].innerText = "--:--";
@@ -821,7 +826,7 @@
             let progress = current_time / total_time * 100;
             document.getElementById("progress-bar").children[0].style.width = `${progress}%`;
         }
-        
+
         if (album_art_src) {
             // document.getElementById("album-art").src = album_art_src;
             document.getElementById(activeAlbumArtId).src = album_art_src;
@@ -838,7 +843,7 @@
 
         if (song_id != prevSongId) {
             scrollOffset = 0;
-            let lyricsView = document.getElementById("lyrics-view"); 
+            let lyricsView = document.getElementById("lyrics-view");
             waitingOnLyrics = true;
             fadeOutLyrics(lyricsView.children);
 
@@ -854,8 +859,8 @@
             // remove / from title and artist
             title = title.replace(/\//g, " ");
             artist = artist.replace(/\//g, " ");
-            
-            fetch(`https://ytm.nwvbug.com/request-lyrics/${title} [By] ${artist}`).then(text => {
+
+            fetch(`https://ytm.nwvbug.com/request-lyrics/${title} ${artist}`).then(text => {
                 if (text.status >= 500) {
                     return "no_lyrics_found"
                 }
@@ -1011,19 +1016,19 @@
                 return null;
             }
         })
-        
+
         return response;
     }
 
     async function togglePlayback() {
         const token = localStorage.getItem('access_token');
-        
+
         const stateRes = await fetch('https://api.spotify.com/v1/me/player', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const state = await stateRes.json();
-        const endpoint = state.is_playing ? 
-            'https://api.spotify.com/v1/me/player/pause' : 
+        const endpoint = state.is_playing ?
+            'https://api.spotify.com/v1/me/player/pause' :
             'https://api.spotify.com/v1/me/player/play';
         await fetch(endpoint, {
             method: 'PUT',
@@ -1149,7 +1154,7 @@
 
             canvas = pixelSortH(canvas);
             canvas = pixelSortV(canvas);
-            
+
 
             let textureUnit = activeTexture === "u_texture_one" ? gl.TEXTURE0 : gl.TEXTURE1;
             let textureUnitIndex = activeTexture === "u_texture_one" ? 0 : 1;
@@ -1169,7 +1174,7 @@
             targetTexture = Math.abs(1 - textureUnitIndex);
         };
     }
-    
+
     window.requestAnimFrame = (function () {
         return window.requestAnimationFrame ||
             function (callback) {
@@ -1279,14 +1284,14 @@
             var data = imdata.data;
 
             var pixels= getPixelsArray(data);
-            
+
             var start= 0;
             var end = findValueLess(pixels, row, threshold, start);
             while (start<b.width) {
                 var range= pixels.splice(start, end-start);
                 range.sort(invert?simpleMeanSortInverted:simpleMeanSort);
                 pixels.splice.apply(pixels, [start,0].concat(range));
-                
+
                 start= end;
                 end= findValueLess(pixels, row, threshold, start+1);
             }
@@ -1304,18 +1309,18 @@
             var data= imdata.data;
 
             var pixels= getPixelsArray(data);
-            
+
             var start= 0;
             var end= findValueLess(pixels, col, threshold, start);
             while(start<b.height){
                 var range= pixels.splice(start, end-start);
                 range.sort(invert?simpleMeanSortInverted:simpleMeanSort);
                 pixels.splice.apply(pixels, [start,0].concat(range));
-                
+
                 start= end;
                 end= findValueLess(pixels, col, threshold, start+1);
             }
-                
+
             setDataFromPixelsArray(data, pixels);
             c.putImageData(imdata, col, 0);
         }
@@ -1369,13 +1374,20 @@
         }
         return pixels.length;
     }
+
+    if (devicePixelRatio >= 1.52 && devicePixelRatio <= 1.56) {
+      document.body.style.transform = "scale(" + (1 / devicePixelRatio) + ")";
+      document.body.style.transformOrigin = "top";
+      document.body.style.width = (devicePixelRatio * 100) + "%";
+    }
+
 </script>
 <script id="vertScript" type="x-shader/x-vertex">#version 300 es
     layout(location = 0) in vec3 position;
     layout(location = 1) in vec2 texCoord;
-    
+
     out vec2 uv;  // Pass texture coordinates to the fragment shader
-    
+
     void main() {
         uv = texCoord;
         gl_Position = vec4(position, 1.0);
@@ -1384,14 +1396,14 @@
 <script id="fragScript" type="x-shader/x-fragment">#version 300 es
     precision highp float;
     precision highp sampler2D;
-    
+
     // normalized coordinates, (0,0) is the bottom left
     in vec2 uv;
     // resulting fragment color, you may name it whatever you like
     out vec4 out_color;
-    
+
     // @note you can hover over symbols, variables, struct types and functions for more info
-    
+
     // size of the canvas in pixels
     uniform vec2 u_resolution;
     // elapsed time since shader compile in seconds
@@ -1402,12 +1414,12 @@
     uniform sampler2D u_texture_one;
     uniform sampler2D u_texture_two;
     uniform float blend_amount;
-    
+
 
     float rand(vec2 c){
         return fract(sin(dot(c.xy ,vec2(12.9898,78.233))) * 43758.5453);
     }
-    
+
     float noise(vec2 p, float freq ){
         float unit = 1.;
         vec2 ij = floor(p/unit);
@@ -1422,7 +1434,7 @@
         float x2 = mix(c, d, xy.x);
         return mix(x1, x2, xy.y);
     }
-    
+
     float pNoise(vec2 p, int res){
         float persistance = .5;
         float n = 0.;
@@ -1452,38 +1464,38 @@
     float curveEquation(float uv_y) {
         float sinWave = -sin(uv_y * (normalizedSine(u_time) + 0.5) * 4.) / 3.;
         float linear = sin(uv_y * (normalizedSine(u_time) + 0.5) * 4.) / 3.;
-    
+
         float blendAmount = (sin(u_time * 1.4) + 1.) / 2.;
         // float blendAmount = 1.;
         sinWave = sinWave * blendAmount + (linear * (1. - blendAmount));
-    
+
         sinWave += cos(uv.x * 4.35 + u_time) * 0.1;
         sinWave += cos(uv.x * 6.51 + u_time) * 0.05;
         return sinWave;
     }
-    
+
     vec3 colorRamp(float t, vec3 colors[5]) {
         t = fract(t - 0.1);
         t = 1.0 - abs(2.0 * t - 1.0);
         t *= 4.0;
-        
+
         vec3 finalColor = vec3(0.0);
         float totalWeight = 0.0;
-        
+
         for(int i = 0; i < 5; i++) {
             float dist = abs(float(i) - t);
             float weight = 1.0 - smoothstep(0.0, 3.0, dist);
             finalColor += colors[i] * weight;
             totalWeight += weight;
         }
-        
+
         return finalColor / totalWeight;
     }
 
     vec3 blendTextureSample(vec2 uv) {
         return mix(texture(u_texture_one, uv).rgb, texture(u_texture_two, uv).rgb, 1. - blend_amount);
     }
-    
+
     void main(){
         vec2 sample_point = vec2(uv.x - 0.5, uv.y - 0.5);
         // float power = ((sin(u_time + (uv.y * 5.)) + 1.) / 2.) + 0.7;
@@ -1520,7 +1532,7 @@
         // col *= 0.5;
         col += u_time * 0.5;
         col += pNoise(uv * 10., 5) * 0.05;
-        
+
         //vec3 colors[5] = vec3[5](
         //    blendTextureSample(vec2(0.1, 0.1)),
         //    blendTextureSample(vec2(0.3, 0.3)),
@@ -1536,7 +1548,7 @@
             blendTextureSample(vec2(0.5 + 0.4 * cos(u_time + 0.8 * 6.28), 0.5 + 0.4 * sin(u_time + 0.8 * 6.28)))
         );
         out_color = vec4(colorRamp(col, colors), 1);
-    
+
     }
 </script>
 </html>
