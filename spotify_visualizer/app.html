@@ -779,11 +779,16 @@
         if (current == target) {
             return;
         }
-        if (target.startsWith(current)) {
-            element.innerText = target.substring(0, current.length + 1);
+        if (!(current.length == 1 && current[0] != target[0])) {
+          if (target.startsWith(current)) {
+              element.innerText = target.substring(0, current.length + 1);
+          } else {
+              element.textContent = current.substring(0, current.length - 1);
+          }
         } else {
-            element.textContent = current.substring(0, current.length - 1);
+            element.textContent = target.substring(0, 2)
         }
+
     }
 
     setInterval(() => {
@@ -1244,18 +1249,22 @@
     window.onresize = fixSize;
 
     let lastMouseMove = 0;
-    window.onmousemove = function (event) {
-        lastMouseMove = Date.now();
-        let metadata = document.getElementById("metadata");
-        let title = document.getElementById("title");
-        let playbackControls = document.getElementById("playback-controls");
-        metadata.style.opacity = 0;
-        title.style.opacity = 0;
-        playbackControls.style.opacity = 1;
-        setTimeout(() => {
-            checkRestoreMetadata()
-        }, 3001);
+    window.onmousemove = mouseMove;
+
+    function mouseMove(event) {
+      lastMouseMove = Date.now();
+      let metadata = document.getElementById("metadata");
+      let title = document.getElementById("title");
+      let playbackControls = document.getElementById("playback-controls");
+      metadata.style.opacity = 0;
+      title.style.opacity = 0;
+      playbackControls.style.opacity = 1;
+      setTimeout(() => {
+          checkRestoreMetadata()
+      }, 3001);
     }
+
+    mouseMove();
 
     function checkRestoreMetadata() {
         let metadata = document.getElementById("metadata");
